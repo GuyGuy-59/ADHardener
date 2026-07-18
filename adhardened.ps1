@@ -34,11 +34,11 @@
     Validate environment and show planned changes without modifying AD.
 
 .EXAMPLE
-    .\sec_ad.ps1 -LogLevel DEBUG
+    .\adhardened.ps1-LogLevel DEBUG
     Run with verbose logging.
 
 .EXAMPLE
-    .\sec_ad.ps1 -WhatIf
+    .\adhardened.ps1 -WhatIf
     Standard PowerShell WhatIf semantics for cmdlets that support it.
 
 .NOTES
