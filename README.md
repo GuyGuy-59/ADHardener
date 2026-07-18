@@ -1,101 +1,326 @@
-# Sec_AD
+# ADHardened
 
-Automated tiered Active Directory hardening with security baseline GPOs, defense-in-depth controls, and best-effort rollback.
+Automated Active Directory hardening with tiered administration, security baseline GPOs, defense-in-depth controls, and best-effort rollback.
 
-## Table of contents
-- [Overview](#overview)
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Usage](#usage)
-- [Module structure](#module-structure)
-- [GPO linking strategy](#gpo-linking-strategy)
-- [GPO catalog](gpo.md)
-- [AD hardening (advanced, opt-in)](#ad-hardening)
-- [Rollback (`restore.ps1`)](#restore)
-- [Security considerations](#security-considerations)
-- [Tests](#tests)
-- [TODO](#todo)
+**ADHardened** helps security teams deploy and maintain a hardened Active Directory security architecture based on a tiered administration model.
+
+It automates the creation of Tier 0, Tier 1, and Tier 2 administrative structures, applies security-focused Group Policy Objects, enables optional advanced Active Directory hardening, and provides state backups for controlled rollback.
+
+> **ADHardened is designed as a security automation and reference framework. Always test changes in a lab environment before deploying them to production.**
+
+---
+
+## Table of Contents
+
+* [Overview](#overview)
+* [Features](#features)
+* [Architecture](#architecture)
+* [Prerequisites](#prerequisites)
+* [Usage](#usage)
+* [Configuration](#configuration)
+* [Module Structure](#module-structure)
+* [GPO Linking Strategy](#gpo-linking-strategy)
+* [Advanced AD Hardening](#advanced-ad-hardening)
+* [Rollback](#rollback)
+* [Security Considerations](#security-considerations)
+* [Testing](#testing)
+* [Roadmap](#roadmap)
+
+---
 
 <a id="overview"></a>
+
 ## 📦 Overview
 
-`Sec_AD` deploys a tiered administration model in Active Directory (Tier 0 / Tier 1 / Tier 2 / Tier 1 Legacy), imports a curated set of security-hardening GPOs, links them granularly per sub-OU, and offers optional advanced hardening (tier ACL delegation, Authentication Policy Silos, privileged-group audit, sensitive-account flags) along with a best-effort rollback tool.
+Active Directory is one of the most critical components of a Windows enterprise environment.
 
-Designed to be:
-- **Idempotent** — safe to re-run; existing objects and links are detected and skipped.
-- **Auditable** — every run logs to a timestamped file and captures a JSON state baseline before any modification.
-- **Reversible** — a separate `restore.ps1` reads the baseline and undoes what it can.
+A compromise of privileged identities, Domain Controllers, or administrative workstations can provide an attacker with control over the entire domain.
+
+**ADHardened** helps reduce this attack surface by automating a tiered security model:
+
+```text
+                    ┌─────────────────────┐
+                    │       TIER 0        │
+                    │                     │
+                    │ Domain Controllers  │
+                    │ Enterprise Admins   │
+                    │ Domain Admins       │
+                    │ Critical Identity   │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │       TIER 1        │
+                    │                     │
+                    │ Servers             │
+                    │ Server Admins       │
+                    │ Infrastructure      │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │       TIER 2        │
+                    │                     │
+                    │ Workstations        │
+                    │ End Users           │
+                    │ Helpdesk             │
+                    └─────────────────────┘
+```
+
+ADHardened is designed to be:
+
+* **Idempotent** — safe to run repeatedly.
+* **Auditable** — every execution generates logs and state snapshots.
+* **Reversible** — changes are backed up before modification whenever possible.
+* **Modular** — individual security functions can be enabled or disabled.
+* **Dry-run friendly** — changes can be previewed using `-DryRun` and `-WhatIf`.
+
+---
 
 <a id="features"></a>
+
 ## ✨ Features
 
-- Tiered OU structure (Tier0 / Tier1 / Tier2 / Tier1_Legacy + ADM containers)
-- Security-hardening GPO import with forest-functional-level-aware selection
-- Granular GPO linking per sub-OU (Workstations vs Servers vs Users vs Admins)
-- Domain-level hardening: ADSI unauthenticated bind, machine account quota, krbtgt encryption types, AD Recycle Bin, LAPS, BitLocker prerequisites
-- Optional AD hardening: tier OU ACL delegation, Authentication Policy Silos, Pre-Windows 2000 lockdown, Tier 0 sensitive flag, privileged group audit
-- Centralized logging with severity levels
-- Preflight validation (modules, privileges, connectivity, config integrity)
-- AD state baseline capture for rollback
-- `-WhatIf` / `-DryRun` everywhere
-- Pester test suite (offline, no live AD required)
+### Active Directory Architecture
+
+* Tier 0 / Tier 1 / Tier 2 OU structure
+* Tier 1 Legacy support
+* Dedicated administrative containers
+* Tier-specific security boundaries
+* Automated group creation
+
+### Group Policy Security
+
+* Security-hardening GPO import
+* Forest functional level-aware selection
+* Granular GPO linking
+* Separate policies for:
+
+  * Domain Controllers
+  * Servers
+  * Workstations
+  * Users
+  * Administrators
+
+### Active Directory Hardening
+
+* ADSI unauthenticated bind hardening
+* Machine Account Quota configuration
+* Kerberos encryption type hardening
+* Active Directory Recycle Bin enablement
+* LAPS prerequisites
+* BitLocker prerequisites
+* Pre-Windows 2000 group lockdown
+* Tier 0 account delegation protection
+* Privileged group auditing
+* Authentication Policy Silos
+* Tier OU ACL delegation
+
+### Operational Safety
+
+* Preflight environment validation
+* Centralized logging
+* Severity-based log levels
+* JSON state baseline capture
+* Best-effort rollback
+* `-WhatIf` support
+* `-DryRun` mode
+* Offline Pester test suite
+
+---
+
+<a id="architecture"></a>
+
+## 🏗️ Architecture
+
+ADHardened separates administrative responsibilities into security tiers.
+
+### Tier 0
+
+Assets and identities that control the Active Directory environment.
+
+Examples:
+
+* Domain Controllers
+* Domain Admins
+* Enterprise Admins
+* Schema Admins
+* Tier 0 administrative accounts
+
+### Tier 1
+
+Server and infrastructure administration.
+
+Examples:
+
+* Member servers
+* Application servers
+* Infrastructure services
+* Server administrators
+
+### Tier 2
+
+User and workstation administration.
+
+Examples:
+
+* Workstations
+* Standard users
+* Helpdesk operations
+
+The goal is to prevent administrative credentials from being reused across security boundaries.
+
+---
 
 <a id="prerequisites"></a>
+
 ## ✅ Prerequisites
 
-- Windows Server with RSAT (or run on a Domain Controller)
-- PowerShell 5.1+ (PowerShell 7 supported via WindowsCompatibility for `GroupPolicy`)
-- Modules: `ActiveDirectory`, `GroupPolicy`, `LAPS` (optional)
-- Run as **Domain Administrator**
-- AD forest/domain functional level ≥ 2008 R2 (Recycle Bin requires 2008 R2+)
+* Windows Server with RSAT
+* Active Directory Domain Services
+* PowerShell 5.1 or later
+* PowerShell 7 supported with Windows Compatibility where required
+* `ActiveDirectory` PowerShell module
+* `GroupPolicy` PowerShell module
+* `LAPS` module (optional)
+* Domain Administrator privileges
+* Active Directory forest/domain functional level ≥ Windows Server 2008 R2
+
+> The Active Directory Recycle Bin requires a forest functional level of at least Windows Server 2008 R2.
+
+---
 
 <a id="usage"></a>
+
 ## ▶️ Usage
 
-### Basic
-```powershell
-.\sec_ad.ps1
+The main deployment script is:
+
+```text
+adhardened.ps1
 ```
 
-### Dry-run (recommended for first execution)
-```powershell
-.\sec_ad.ps1 -DryRun
-```
-Validates the environment, captures the baseline, and lists which functions would be invoked — without modifying AD.
+The rollback script is:
 
-### Verbose logging
-```powershell
-.\sec_ad.ps1 -LogLevel DEBUG
+```text
+restore.ps1
 ```
 
-### `-WhatIf` semantics
-All AD-modifying functions support `-WhatIf`:
+### Standard execution
+
 ```powershell
-.\sec_ad.ps1 -WhatIf
+.\adhardened.ps1
 ```
 
-### Skip safety nets (not recommended)
+---
+
+### Recommended: Dry Run
+
+Before applying changes:
+
 ```powershell
-.\sec_ad.ps1 -SkipPreflight
-.\sec_ad.ps1 -SkipBackup
+.\adhardened.ps1 -DryRun
 ```
 
-### Logs and backups
-- Logs: `logs/sec_ad_YYYYMMDD_HHMMSS.log`
-- State baselines: `backups/state_backup_YYYYMMDD_HHMMSS.json` (captured before any change)
-- ACL backups: `backups/acl/acl_*.json` (when tier delegation runs)
-- Pre-Win2000 backups: `backups/preWin2000_members_*.json`
+Dry-run mode:
 
-### Configuration
+* Validates the environment.
+* Checks required modules.
+* Checks permissions and connectivity.
+* Captures the current state baseline.
+* Displays which actions would be performed.
+* Does not modify Active Directory.
 
-Two config files in `Config/`:
+---
 
-`Global_config.json` — what to do:
+### WhatIf mode
+
+```powershell
+.\adhardened.ps1 -WhatIf
+```
+
+All Active Directory modification functions support `-WhatIf` where applicable.
+
+---
+
+### Debug logging
+
+```powershell
+.\adhardened.ps1 -LogLevel DEBUG
+```
+
+---
+
+### Skip preflight checks
+
+Not recommended:
+
+```powershell
+.\adhardened.ps1 -SkipPreflight
+```
+
+---
+
+### Skip state backup
+
+Not recommended:
+
+```powershell
+.\adhardened.ps1 -SkipBackup
+```
+
+---
+
+## Logs and Backups
+
+### Logs
+
+```text
+logs/adhardened_YYYYMMDD_HHMMSS.log
+```
+
+### State backups
+
+```text
+backups/state_backup_YYYYMMDD_HHMMSS.json
+```
+
+### ACL backups
+
+```text
+backups/acl/acl_*.json
+```
+
+### Pre-Windows 2000 backups
+
+```text
+backups/preWin2000_members_*.json
+```
+
+---
+
+<a id="configuration"></a>
+
+## ⚙️ Configuration
+
+ADHardened uses JSON configuration files located in the `Config/` directory.
+
+### Global_config.json
+
+This file controls the overall deployment.
+
+Example:
+
 ```json
 {
     "RootDN": "DC=lab,DC=local",
     "AdmName": "ADM",
-    "TierNames": ["Tier0", "Tier1", "Tier2", "Tier1_Legacy"],
+    "TierNames": [
+        "Tier0",
+        "Tier1",
+        "Tier2",
+        "Tier1_Legacy"
+    ],
     "TargetDomain": "lab.local",
     "GPOBackupPath": "GPO",
     "Functions": {
@@ -103,7 +328,6 @@ Two config files in `Config/`:
         "ImportSecurityHardeningGPOs": true,
         "ApplyGPOsToTiers": true,
         "SetADSIUnauthenticatedBind": true,
-        ...
         "SetTierOUDelegation": false,
         "NewTier0AuthenticationPolicySilo": false,
         "LockPreWindows2000Group": false,
@@ -113,240 +337,679 @@ Two config files in `Config/`:
 }
 ```
 
-`GPO_config.json` — which GPOs to link where (see [GPO linking strategy](#gpo-linking-strategy)).
+Security-sensitive functions are disabled by default and must be explicitly enabled.
+
+---
+
+### GPO_config.json
+
+Defines which GPOs are linked to which tiers and organizational units.
+
+See [GPO Linking Strategy](#gpo-linking-strategy).
+
+---
+
+### Silo_config.json
+
+Authentication Policy Silo configuration:
+
+```json
+{
+    "PolicyName": "Tier0-AuthPolicy",
+    "SiloName": "Tier0-Silo",
+    "Mode": "Audit",
+    "TGTLifetimeMinutes": 45,
+    "Members": {
+        "Users": [
+            "t0-admin1",
+            "t0-admin2"
+        ],
+        "Computers": [
+            "DC01$",
+            "DC02$",
+            "PAW-T0-01$"
+        ],
+        "Services": []
+    }
+}
+```
+
+Start with:
+
+```json
+"Mode": "Audit"
+```
+
+Only switch to:
+
+```json
+"Mode": "Enforce"
+```
+
+after validating the resulting audit events and authentication behavior.
+
+---
 
 <a id="module-structure"></a>
-## 🧩 Module structure
 
-- **Logging.psm1** — centralized logging (file + console, severity levels)
-- **Validation.psm1** — preflight checks (modules with PS7 fallback, privileges, connectivity, config)
-- **StateManagement.psm1** — AD state baseline capture + best-effort rollback (OUs, groups, GPO links, domain attributes, AccountNotDelegated flags, Authentication Policy Silos, privileged group membership)
-- **GPO.psm1** — GPO import & granular tier/sub-OU linking
-- **ADStructure.psm1** — tier OU structure deployment; `New-OU` and `New-Group` are private helpers (not exported)
-- **ADHardening.psm1** — domain-level hardening (ADSI bind, machine account quota, Kerberos encryption types, Recycle Bin, LAPS, BitLocker), tier OU ACL delegation, Authentication Policy Silos, Pre-Win2000 lockdown, privileged-group audit, Tier 0 sensitive flag
+## 🧩 Module Structure
+
+### Logging.psm1
+
+Centralized logging.
+
+Responsibilities:
+
+* Console output
+* File logging
+* Severity levels
+* Timestamped execution logs
+
+---
+
+### Validation.psm1
+
+Preflight validation.
+
+Checks:
+
+* Required PowerShell modules
+* PowerShell version
+* Administrative privileges
+* Active Directory connectivity
+* Configuration integrity
+
+---
+
+### StateManagement.psm1
+
+State management and rollback.
+
+Responsibilities:
+
+* AD baseline capture
+* OU state
+* Group state
+* GPO links
+* Domain attributes
+* Account delegation flags
+* Authentication Policy Silos
+* Privileged group membership
+* Best-effort restoration
+
+---
+
+### GPO.psm1
+
+GPO management.
+
+Responsibilities:
+
+* GPO import
+* GPO detection
+* Granular linking
+* Idempotent GPO deployment
+
+---
+
+### ADStructure.psm1
+
+Active Directory structure creation.
+
+Responsibilities:
+
+* Tier OU creation
+* Administrative OU creation
+* Group creation
+* Tier hierarchy deployment
+
+---
+
+### ADHardening.psm1
+
+Security hardening functions.
+
+Responsibilities:
+
+* Domain-level hardening
+* Kerberos security settings
+* Machine Account Quota
+* ADSI binding security
+* Active Directory Recycle Bin
+* LAPS
+* BitLocker prerequisites
+* OU ACL delegation
+* Authentication Policy Silos
+* Privileged group auditing
+* Pre-Windows 2000 group lockdown
+* Tier 0 account protection
+
+---
 
 <a id="gpo-linking-strategy"></a>
-## 🔗 GPO linking strategy
 
-GPOs are linked **per sub-OU**, not at the tier root. This avoids applying user-side GPOs to OUs that contain only computers and vice-versa.
+## 🔗 GPO Linking Strategy
 
-### Configuration format
+GPOs are linked to the most appropriate organizational unit rather than automatically linking everything at the tier root.
 
-`GPO_config.json` `TierMappings` supports two formats:
+This avoids applying inappropriate user or computer policies.
 
-**Granular** (recommended, used by default):
+### Granular configuration
+
+Example:
+
 ```json
-"TierMappings": {
-    "Tier2": {
-        "description": "Workstations, end users",
-        "subOUs": {
-            "Workstations": { "gpos": [ "Bitlocker-Enabled", "..." ] },
-            "Users":        { "gpos": [ "ScreenLock-enabled", "..." ] },
-            "Admins":       { "gpos": [ "..." ] }
+{
+    "TierMappings": {
+        "Tier2": {
+            "description": "Workstations and end users",
+            "subOUs": {
+                "Workstations": {
+                    "gpos": [
+                        "Bitlocker-Enabled"
+                    ]
+                },
+                "Users": {
+                    "gpos": [
+                        "ScreenLock-enabled"
+                    ]
+                },
+                "Admins": {
+                    "gpos": []
+                }
+            }
         }
     }
 }
 ```
 
-The special key `_root` links a GPO to the tier OU itself (`OU=_TierN,...`) so it inherits down to all sub-OUs.
+The special `_root` key can be used to link a GPO directly to the tier root OU.
 
-**Legacy flat** (still supported):
-```json
-"TierMappings": {
-    "Tier2": { "gpos": [ "Applocker-Enabled", "..." ] }
-}
-```
+---
 
-### Categorization reference
+### Legacy flat configuration
 
-The shipped config classifies GPOs into four categories (visible in `_categories` of `GPO_config.json` as documentation):
-- **AllComputers** — every machine OU (DCs, servers, workstations)
-- **ServersOnly** — server-specific (LDAP server signing, server logs, RDP server controls)
-- **WorkstationsOnly** — workstation-specific (BitLocker, AppLocker, Exploit Guard, LAPS)
-- **UsersSide** — user-context settings (ScreenLock, WPAD-User, proxy lockdown)
-
-`_categories` is documentation only; the script reads `TierMappings`.
-
-### Idempotence
-
-`Set-GPOsToTiers` reads existing links per OU once and skips any GPO already linked. Re-runs are safe. End-of-run summary shows: newly-linked, already-linked, skipped (GPO not in domain), skipped (OU missing), failed.
-
-<a id="ad-hardening"></a>
-## 🛡️ AD hardening (advanced, opt-in)
-
-These functions are **disabled by default** in `Global_config.json`. Review each carefully before enabling. All support `-WhatIf` and capture JSON backups before changes.
-
-| Function | What it does | Risk if misconfigured |
-|---|---|---|
-| `SetTierOUDelegation` | Creates `TierN_Admins` groups, grants FullControl on tier OU, denies cross-tier writes | Lockout if running admin is not in any tier admin group; mitigated by Domain Admins inherited rights |
-| `NewTier0AuthenticationPolicySilo` | Creates/updates Auth Policy + Silo from `Config/Silo_config.json`; additive member assignment (never removes existing members) | Requires DFL ≥ 2012R2; start in `Audit` mode — `Enforce` blocks non-members from authenticating |
-| `LockPreWindows2000Group` | Empties `S-1-5-32-554` membership after JSON backup | Legacy NT4 / pre-W2K systems may break |
-| `GetPrivilegedGroupAudit` | Read-only audit of DA/EA/Schema Admins; writes JSON report to `logs/` | None (read-only) |
-| `SetTier0AccountSensitive` | Marks all users under `_Tier0\Admins` as `AccountNotDelegated=$true` | Breaks Kerberos delegation for those accounts (intentional) |
-
-### Authentication Policy Silo (`Config/Silo_config.json`)
-
-All silo parameters live in a single JSON file — there is no `-Mode`, `-PolicyName`, or `-SiloName` parameter on the function:
+The legacy flat format remains supported:
 
 ```json
 {
-    "PolicyName": "Tier0-AuthPolicy",
-    "SiloName":   "Tier0-Silo",
-    "Mode":       "Audit",
-    "TGTLifetimeMinutes": 45,
-    "Members": {
-        "Users":     ["t0-admin1", "t0-admin2"],
-        "Computers": ["DC01$", "DC02$", "PAW-T0-01$"],
-        "Services":  []
+    "TierMappings": {
+        "Tier2": {
+            "gpos": [
+                "Applocker-Enabled"
+            ]
+        }
     }
 }
 ```
 
-**Mode semantics:**
-- `Audit` — policy and silo are created but not enforced; TGT issuance is not restricted. Monitor DC events 105/305, 4625, 4768–4770.
-- `Enforce` — non-members are blocked from authenticating to silo-protected resources. Switch only after validating the audit log.
+---
 
-**Re-running is safe:** existing policy/silo objects are updated (Mode + SDDL conditions), not recreated. Member assignment is **additive** — accounts in the config not yet assigned to the silo are added; accounts already assigned but absent from the config are never removed.
+### GPO Categories
 
-**To remove a member manually:**
-```powershell
-Set-ADAccountAuthenticationPolicySilo -Identity <SamAccountName> -AuthenticationPolicySilo $null
+The default configuration groups policies into categories.
+
+#### AllComputers
+
+Applies to:
+
+* Domain Controllers
+* Servers
+* Workstations
+
+#### ServersOnly
+
+Server-specific security policies.
+
+#### WorkstationsOnly
+
+Workstation security policies such as:
+
+* BitLocker
+* AppLocker
+* Exploit Guard
+* LAPS
+
+#### UsersSide
+
+User-context security policies such as:
+
+* Screen lock
+* WPAD restrictions
+* Proxy lockdown
+
+---
+
+### Idempotence
+
+ADHardened checks existing GPO links before making changes.
+
+Re-running the deployment is therefore safe.
+
+The final summary reports:
+
+* Newly linked GPOs
+* Already linked GPOs
+* Missing GPOs
+* Missing OUs
+* Failed operations
+
+---
+
+<a id="advanced-ad-hardening"></a>
+
+## 🛡️ Advanced AD Hardening
+
+Advanced hardening features are disabled by default.
+
+Review and enable each feature individually.
+
+| Function                           | Purpose                                                           | Potential Risk                                              |
+| ---------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| `SetTierOUDelegation`              | Creates tier admin groups and applies OU ACL delegation           | Incorrect delegation may cause administrative access issues |
+| `NewTier0AuthenticationPolicySilo` | Creates and configures a Tier 0 Authentication Policy Silo        | Enforce mode can block authentication                       |
+| `LockPreWindows2000Group`          | Removes members from the Pre-Windows 2000 Compatible Access group | Legacy applications may stop working                        |
+| `GetPrivilegedGroupAudit`          | Audits privileged group membership                                | Read-only operation                                         |
+| `SetTier0AccountSensitive`         | Sets `AccountNotDelegated` on Tier 0 accounts                     | Kerberos delegation may stop working intentionally          |
+
+---
+
+### Authentication Policy Silo
+
+All silo parameters are stored in:
+
+```text
+Config/Silo_config.json
 ```
 
-**DC prerequisite (GPO):** "KDC support for claims, compound authentication and Kerberos armoring" → `Always provide claims` on all Domain Controllers.
+Example:
+
+```json
+{
+    "PolicyName": "Tier0-AuthPolicy",
+    "SiloName": "Tier0-Silo",
+    "Mode": "Audit",
+    "TGTLifetimeMinutes": 45,
+    "Members": {
+        "Users": [
+            "t0-admin1",
+            "t0-admin2"
+        ],
+        "Computers": [
+            "DC01$",
+            "DC02$",
+            "PAW-T0-01$"
+        ],
+        "Services": []
+    }
+}
+```
+
+#### Audit mode
+
+The policy and silo are created but not enforced.
+
+Monitor relevant Domain Controller events before enabling enforcement.
+
+#### Enforce mode
+
+Non-members may be blocked from authenticating to protected resources.
+
+Only enable after validating the impact in your environment.
+
+Re-running the function is safe:
+
+* Existing policies are updated.
+* Existing silos are updated.
+* Member assignment is additive.
+* Existing members are not automatically removed.
+
+---
 
 ### Manual cleanup helper
 
-`Remove-PrivilegedGroupMember` is **not** wired to the orchestrator on purpose. Use it manually after reviewing the audit:
+`Remove-PrivilegedGroupMember` is intentionally not connected to the main orchestrator.
+
+Audit first:
 
 ```powershell
 Import-Module .\Modules\ADHardening.psm1
 
-# Audit first
-Get-PrivilegedGroupAudit -ReportPath .\logs\audit.json
-
-# Dry-run a removal
-Remove-PrivilegedGroupMember -GroupName 'Domain Admins' -MemberSamAccountName 'jdoe' -WhatIf
-
-# Real removal (will prompt due to ConfirmImpact=High)
-Remove-PrivilegedGroupMember -GroupName 'Domain Admins' -MemberSamAccountName 'jdoe'
+Get-PrivilegedGroupAudit `
+    -ReportPath .\logs\audit.json
 ```
 
-The built-in `Administrator` is refused unless you pass `-AllowAdministratorRemoval`.
+Dry-run a removal:
 
-### Recommended order
+```powershell
+Remove-PrivilegedGroupMember `
+    -GroupName 'Domain Admins' `
+    -MemberSamAccountName 'jdoe' `
+    -WhatIf
+```
 
-1. `InitializeADStructure` — create the OU/group skeleton
-2. `ImportSecurityHardeningGPOs` + `ApplyGPOsToTiers`
-3. `SetTier0AccountSensitive` — quick win, low risk
-4. `LockPreWindows2000Group` — verify no legacy dependencies first
-5. `GetPrivilegedGroupAudit` — review report, plan removals
-6. `SetTierOUDelegation` — populate `TierN_Admins` groups before enabling
-7. `NewTier0AuthenticationPolicySilo` — last; reads `Config/Silo_config.json`; declare members there; start with `Mode: Audit`, switch to `Enforce` after validation
+Perform the removal:
 
-<a id="restore"></a>
-## ↩️ Rollback (`restore.ps1`)
+```powershell
+Remove-PrivilegedGroupMember `
+    -GroupName 'Domain Admins' `
+    -MemberSamAccountName 'jdoe'
+```
 
-Sec_AD captures backup artifacts on every run:
-- `backups/state_backup_*.json` — snapshot before any change (OUs, groups, GPO links, domain attributes, Tier 0 sensitive flags, Authentication Policy Silos, privileged group membership)
-- `backups/acl/acl_*.json` — OU ACL snapshots before delegation changes
-- `backups/preWin2000_members_*.json` — group membership before lockdown
+The built-in `Administrator` account is protected unless:
 
-The `restore.ps1` companion script reverses these. It is intentionally a **separate entry point** from `sec_ad.ps1` to avoid mixing apply and rollback flows.
+```powershell
+-AllowAdministratorRemoval
+```
+
+is explicitly provided.
+
+---
+
+### Recommended Hardening Order
+
+1. Initialize the Active Directory structure.
+2. Import security GPOs.
+3. Apply GPOs to the appropriate tiers.
+4. Enable Tier 0 account protection.
+5. Lock down the Pre-Windows 2000 group after checking legacy dependencies.
+6. Audit privileged groups.
+7. Review the audit results.
+8. Configure tier OU delegation.
+9. Configure Authentication Policy Silos.
+10. Start in `Audit` mode.
+11. Switch to `Enforce` only after validation.
+
+---
+
+<a id="rollback"></a>
+
+## ↩️ Rollback
+
+ADHardened captures state before applying changes.
+
+The `restore.ps1` script remains a separate entry point from `adhardened.ps1`.
+
+This separation prevents mixing deployment and rollback workflows.
+
+---
+
+### Available backup types
+
+#### State backups
+
+```text
+backups/state_backup_*.json
+```
+
+Contain:
+
+* OUs
+* Groups
+* GPO links
+* Domain attributes
+* Account delegation flags
+* Authentication Policy Silos
+* Privileged group membership
+
+#### ACL backups
+
+```text
+backups/acl/acl_*.json
+```
+
+#### Pre-Windows 2000 backups
+
+```text
+backups/preWin2000_members_*.json
+```
+
+---
 
 ### List available backups
+
 ```powershell
 .\restore.ps1 -List
 ```
 
+---
+
 ### Preview a state restore
-```powershell
-.\restore.ps1 -StateBackupFile .\backups\state_backup_20260510_213601.json -All -WhatIf
-```
-
-The diff is printed: domain attributes to revert, GPO links to add/remove, groups and OUs to delete (only those created since the backup, only if empty), sensitive flags to revert, silos to delete, privileged group members to remove/re-add.
-
-### Granular control
 
 ```powershell
-# Only restore domain attributes
-.\restore.ps1 -StateBackupFile <path> -IncludeDomainAttrs
-
-# Only restore GPO links (e.g. after a botched re-link)
-.\restore.ps1 -StateBackupFile <path> -IncludeGPOLinks
-
-# Revert AccountNotDelegated on Tier 0 admins
-.\restore.ps1 -StateBackupFile <path> -IncludeAccountDelegation
-
-# Delete silos absent from baseline + revert silo membership
-.\restore.ps1 -StateBackupFile <path> -IncludeSilos
-
-# Revert Domain Admins / EA / Schema Admins membership
-.\restore.ps1 -StateBackupFile <path> -IncludePrivilegedGroups
-
-# Everything
-.\restore.ps1 -StateBackupFile <path> -All
+.\restore.ps1 `
+    -StateBackupFile .\backups\state_backup_YYYYMMDD_HHMMSS.json `
+    -All `
+    -WhatIf
 ```
 
-### Restore an OU's ACL
+The restore preview shows:
+
+* Domain attributes to revert
+* GPO links to add or remove
+* Groups and OUs to delete
+* Sensitive flags to revert
+* Authentication Policy Silos to delete
+* Privileged group membership changes
+
+---
+
+### Restore domain attributes
+
 ```powershell
-.\restore.ps1 -ACLBackupFile .\backups\acl\acl_OU_Tier0_DC_lab_DC_local_20260510_215000.json
+.\restore.ps1 `
+    -StateBackupFile <path> `
+    -IncludeDomainAttrs
 ```
 
-### Re-add Pre-Win2000 members
+---
+
+### Restore GPO links
+
 ```powershell
-.\restore.ps1 -PreWin2000BackupFile .\backups\preWin2000_members_20260510_220000.json
+.\restore.ps1 `
+    -StateBackupFile <path> `
+    -IncludeGPOLinks
 ```
+
+---
+
+### Restore AccountNotDelegated flags
+
+```powershell
+.\restore.ps1 `
+    -StateBackupFile <path> `
+    -IncludeAccountDelegation
+```
+
+---
+
+### Restore Authentication Policy Silos
+
+```powershell
+.\restore.ps1 `
+    -StateBackupFile <path> `
+    -IncludeSilos
+```
+
+---
+
+### Restore privileged group membership
+
+```powershell
+.\restore.ps1 `
+    -StateBackupFile <path> `
+    -IncludePrivilegedGroups
+```
+
+---
+
+### Restore everything
+
+```powershell
+.\restore.ps1 `
+    -StateBackupFile <path> `
+    -All
+```
+
+---
+
+### Restore an OU ACL
+
+```powershell
+.\restore.ps1 `
+    -ACLBackupFile .\backups\acl\acl_OU_Tier0.json
+```
+
+---
+
+### Restore Pre-Windows 2000 group members
+
+```powershell
+.\restore.ps1 `
+    -PreWin2000BackupFile .\backups\preWin2000_members_YYYYMMDD_HHMMSS.json
+```
+
+---
 
 ### Backward compatibility
 
-State backup files written before the `AccountNotDelegated`, `AuthNPolicySilos`, and `PrivilegedGroups` fields were added are handled transparently: `Compare-StateBackup` and `Restore-StateBackup` null-check each section and silently skip absent ones.
+Older state backup files are handled transparently.
 
-### What is NOT reversible
+Missing sections such as:
 
-- **AD Recycle Bin enable** — irreversible by design (Microsoft).
-- **LAPS schema update** — schema attributes cannot be removed.
-- **GPO content imports** — restore unlinks but does not delete the GPO objects themselves. Use `Remove-GPO` manually.
-- **OUs with user-created child objects** — restore refuses to delete; move children out first.
+* `AccountNotDelegated`
+* `AuthNPolicySilos`
+* `PrivilegedGroups`
+
+are safely ignored during restore.
+
+---
+
+### What Cannot Be Fully Reversed
+
+Some changes are inherently irreversible or require manual remediation.
+
+Examples:
+
+* Active Directory Recycle Bin enablement
+* LAPS schema updates
+* GPO content imports
+* OUs containing user-created child objects
+
+Rollback is therefore **best effort** and should not replace a complete Active Directory backup strategy.
+
+---
 
 <a id="security-considerations"></a>
-## 🔐 Security considerations
 
-- Requires **Domain Administrator** rights
-- Review every GPO before applying
-- Always test in a lab before production
-- Maintain separate full system-state backups of every DC; the JSON baselines complement but do not replace them
+## 🔐 Security Considerations
 
-<a id="tests"></a>
-## 🧪 Tests
+ADHardened modifies security-critical Active Directory settings.
 
-Offline Pester tests (no live AD required):
+Before using it in production:
+
+* Test all changes in a dedicated lab.
+* Review every GPO.
+* Validate the impact on legacy applications.
+* Maintain full System State backups of Domain Controllers.
+* Use JSON state backups as a complement, not a replacement.
+* Review all advanced hardening functions before enabling them.
+* Start Authentication Policy Silos in `Audit` mode.
+* Monitor Domain Controller security logs after changes.
+* Maintain a documented rollback procedure.
+* Test restoration procedures regularly.
+
+---
+
+<a id="testing"></a>
+
+## 🧪 Testing
+
+ADHardened includes an offline Pester test suite.
+
+No live Active Directory environment is required.
+
+Run tests:
 
 ```powershell
 .\Tests\Invoke-Tests.ps1
+```
 
-# With CI-friendly NUnit XML output
+Run tests with CI-compatible NUnit XML output:
+
+```powershell
 .\Tests\Invoke-Tests.ps1 -CI
 ```
 
-The runner auto-installs Pester 5+ if needed. Output: `Tests/TestResults.xml` (CI mode).
+Results are written to:
 
-<a id="todo"></a>
-## 📝 TODO
+```text
+Tests/TestResults.xml
+```
 
-- [x] Centralized logging with file output
-- [x] Preflight validation checks (with PS7 fallback for GroupPolicy)
-- [x] `-WhatIf` / `-DryRun` support across all modification functions
-- [x] AD state baseline capture for rollback
-- [x] Extended baseline: `AccountNotDelegated`, Authentication Policy Silos, privileged group membership
-- [x] Pester test suite (offline)
-- [x] OU/group ACL delegation per tier
-- [x] Authentication Policy Silos for Tier 0
-- [x] Audit privileged groups (DA / EA / Schema Admins)
-- [x] Pre-Windows 2000 group lockdown
-- [x] Tier 0 account sensitive flag
-- [x] Granular GPO linking (per sub-OU instead of tier root)
-- [x] Restore from state baseline (best-effort rollback, including hardening axes)
-- [x] Module restructuring: 9 → 6 modules (Common→ADStructure, ADSecurity+ADHardening, Backup+Restore→StateManagement)
-- [ ] CI pipeline (GitHub Actions: PSScriptAnalyzer + Pester)
-- [ ] Extend compatibility with hybrid environments
+The test runner automatically installs Pester 5 or later if required.
+
+---
+
+<a id="roadmap"></a>
+
+## 📝 Roadmap
+
+### Completed
+
+* [x] Centralized logging
+* [x] Preflight validation
+* [x] PowerShell 7 compatibility fallback
+* [x] `-WhatIf` support
+* [x] `-DryRun` support
+* [x] AD state baseline capture
+* [x] Best-effort rollback
+* [x] Tiered OU structure
+* [x] Tier-specific GPO linking
+* [x] OU and group ACL delegation
+* [x] Authentication Policy Silos
+* [x] Privileged group auditing
+* [x] Pre-Windows 2000 group lockdown
+* [x] Tier 0 account protection
+* [x] Offline Pester test suite
+* [x] Modular PowerShell architecture
+* [x] Granular GPO linking per sub-OU
+* [x] State restore for hardening changes
+
+### Planned
+
+* [ ] GitHub Actions CI pipeline
+* [ ] PSScriptAnalyzer integration
+* [ ] Automated Pester execution
+* [ ] Extended hybrid Active Directory support
+* [ ] Additional security baseline profiles
+* [ ] Enhanced security reporting
+* [ ] Compliance-oriented output
+* [ ] Additional Tier 0 protection controls
+
+---
+
+## Project Status
+
+**ADHardened** is an Active Directory security automation framework designed to help organizations deploy a structured, tiered, and hardened Active Directory environment.
+
+It should be considered a security automation framework and reference implementation.
+
+Always validate its behavior against your own:
+
+* Active Directory architecture
+* Security requirements
+* Legacy applications
+* Compliance requirements
+* Operational processes
+
+---
+
+## License
+
+See [`LICENSE`](LICENSE).
+
+---
+
+**ADHardened — Harden Active Directory. Defend the Domain.**
