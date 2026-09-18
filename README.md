@@ -105,6 +105,7 @@ ADHardened is designed to be:
 ### Active Directory Hardening
 
 * ADSI unauthenticated bind hardening
+* DsHeuristics LDAP security mitigation (CVE-2021-42291 / KB5008383)
 * Machine Account Quota configuration
 * Kerberos encryption type hardening
 * Active Directory Recycle Bin enablement
@@ -328,6 +329,7 @@ Example:
         "ImportSecurityHardeningGPOs": true,
         "ApplyGPOsToTiers": true,
         "SetADSIUnauthenticatedBind": true,
+        "SetDsHeuristicsLDAPSecurity": true,
         "SetTierOUDelegation": false,
         "NewTier0AuthenticationPolicySilo": false,
         "LockPreWindows2000Group": false,
@@ -475,6 +477,7 @@ Responsibilities:
 * Kerberos security settings
 * Machine Account Quota
 * ADSI binding security
+* DsHeuristics LDAP security mitigation (CVE-2021-42291)
 * Active Directory Recycle Bin
 * LAPS
 * BitLocker prerequisites

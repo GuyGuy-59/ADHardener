@@ -11,6 +11,7 @@
 
     Functions exported:
       - Set-ADSIUnauthenticatedBind      : set DenyUnauthenticatedBind=1 on the Directory Service object
+      - Set-DsHeuristicsLDAPSecurity     : enforce CVE-2021-42291 mitigation (LDAPAddAutZVerifications/LDAPOwnerModify=1 in dSHeuristics)
       - Set-msDSMachineAccountQuota      : set ms-DS-MachineAccountQuota to 0 (prevent non-admin machine joins)
       - Set-KerberosEncryptionTypes      : restrict krbtgt and DCs to AES-128/AES-256 (disable RC4/DES)
       - Enable-RecycleBin                : enable the AD Recycle Bin (requires Forest FL >= 2008 R2)
@@ -65,6 +66,80 @@ function Set-ADSIUnauthenticatedBind {
         }
     } catch {
         Write-Error "[X] Configuration failed: $_"
+        throw
+    }
+}
+
+function Set-DsHeuristicsLDAPSecurity {
+    <#
+    .SYNOPSIS
+        Checks and enforces the CVE-2021-42291 mitigation (KB5008383) via dSHeuristics.
+
+    .DESCRIPTION
+        LDAPAddAutZVerifications and LDAPOwnerModify are the 28th and 29th characters of
+        dSHeuristics on CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration.
+        0 (default) = audit only, 1 (recommended) = mitigation enforced, 2 = audit disabled.
+        Characters 10 and 20 are block-boundary markers: AD stops parsing a dSHeuristics
+        block early if its boundary character is '0', so any boundary left at '0' by
+        padding is bumped to a non-zero filler (1 / 2, per KB5008383) rather than left as-is.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param(
+        [Parameter(Mandatory=$true)] [string]$TargetDomain
+    )
+
+    try {
+        Write-Log "`n=== Checking DsHeuristics mitigation for CVE-2021-42291 ===" -Level INFO -Color Cyan
+        Write-Log "Target Domain: $TargetDomain" -Level INFO
+
+        Write-Log "`n-> Building Directory Service DN..." -Level INFO
+        $domainDN = "DC=" + ($TargetDomain -replace '\.', ',DC=')
+        $directoryServiceDn = "CN=Directory Service,CN=Windows NT,CN=Services,CN=Configuration,$domainDN"
+
+        Write-Log "-> Retrieving dSHeuristics value..." -Level INFO
+        $directoryService = Get-ADObject -Identity $directoryServiceDn -Properties "dSHeuristics"
+        $current = [string]$directoryService."dSHeuristics"
+
+        Write-Log "Current dSHeuristics: '$current'" -Level DEBUG
+
+        $chars = $current.ToCharArray()
+        $target = New-Object System.Collections.Generic.List[char]
+        for ($i = 0; $i -lt 29; $i++) {
+            if ($i -lt $chars.Length) { $target.Add($chars[$i]) } else { $target.Add('0') }
+        }
+        if ($target[9]  -eq '0') { $target[9]  = '1' }
+        if ($target[19] -eq '0') { $target[19] = '2' }
+        for ($i = 29; $i -lt $chars.Length; $i++) { $target.Add($chars[$i]) }
+
+        $ldapAddAutZVerifications = $target[27]
+        $ldapOwnerModify          = $target[28]
+
+        Write-Log "LDAPAddAutZVerifications (char 28): $ldapAddAutZVerifications" -Level INFO
+        Write-Log "LDAPOwnerModify          (char 29): $ldapOwnerModify" -Level INFO
+
+        if ($ldapAddAutZVerifications -eq '1' -and $ldapOwnerModify -eq '1') {
+            Write-Log "[OK] CVE-2021-42291 mitigation is already enabled (LDAPAddAutZVerifications=1, LDAPOwnerModify=1)" -Level SUCCESS
+            return
+        }
+
+        if ($ldapAddAutZVerifications -eq '2' -or $ldapOwnerModify -eq '2') {
+            Write-Log "[X] CVE-2021-42291 mitigation is explicitly disabled (value=2): audit mechanism and new security permissions are OFF" -Level ERROR
+        } else {
+            Write-Log "[!] CVE-2021-42291 mitigation is not enforced (value=0, default/audit-only)" -Level WARN
+        }
+
+        $target[27] = '1'
+        $target[28] = '1'
+        $newValue = -join $target
+
+        Write-Log "New dSHeuristics value to apply: $newValue" -Level INFO
+
+        if ($PSCmdlet.ShouldProcess($directoryServiceDn, "Set dSHeuristics = $newValue")) {
+            Set-ADObject -Identity $directoryServiceDn -Replace @{ "dSHeuristics" = $newValue }
+            Write-Log "[OK] dSHeuristics updated - LDAPAddAutZVerifications/LDAPOwnerModify set to 1 (mitigation enabled)" -Level SUCCESS
+        }
+    } catch {
+        Write-Error "[X] DsHeuristics configuration failed: $_"
         throw
     }
 }
@@ -953,7 +1028,7 @@ function Set-Tier0AccountSensitive {
 }
 
 Export-ModuleMember -Function `
-    Set-ADSIUnauthenticatedBind, Set-msDSMachineAccountQuota, `
+    Set-ADSIUnauthenticatedBind, Set-DsHeuristicsLDAPSecurity, Set-msDSMachineAccountQuota, `
     Set-KerberosEncryptionTypes, Enable-RecycleBin, Enable-LAPS, Enable-Bitlocker, `
     Set-TierOUDelegation, Backup-OUSecurityDescriptor, `
     New-Tier0AuthenticationPolicySilo, Add-Tier0SiloMember, `

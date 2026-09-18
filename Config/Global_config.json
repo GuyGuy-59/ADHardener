@@ -12,6 +12,7 @@
         "ImportSecurityHardeningGPOs": true,
         "ApplyGPOsToTiers": true,
         "SetADSIUnauthenticatedBind": true,
+        "SetDsHeuristicsLDAPSecurity": true,
         "SetmsDSMachineAccountQuota": true,
         "SetmsDSSupportedEncryptionTypes-krbtgt": true,
         "EnableRecycleBin": true,

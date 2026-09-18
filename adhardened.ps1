@@ -258,6 +258,7 @@ $functionMappings = [ordered]@{
     'ImportSecurityHardeningGPOs'           = { Import-SecurityHardeningGPOs -BackupPath $gpoBackupPath -TargetDomain $script:Config.TargetDomain -FunctionalLevels $functionalLevels -gpoConfigPath $GpoConfigPath }
     'ApplyGPOsToTiers'                      = { Set-GPOsToTiers -TargetDomain $script:Config.TargetDomain -RootDN $script:Config.RootDN -TierNames $script:Config.TierNames -gpoConfigPath $GpoConfigPath }
     'SetADSIUnauthenticatedBind'            = { Set-ADSIUnauthenticatedBind -TargetDomain $script:Config.TargetDomain }
+    'SetDsHeuristicsLDAPSecurity'           = { Set-DsHeuristicsLDAPSecurity -TargetDomain $script:Config.TargetDomain }
     'SetmsDSMachineAccountQuota'            = { Set-msDSMachineAccountQuota -TargetDomain $script:Config.TargetDomain }
     'SetmsDSSupportedEncryptionTypes-krbtgt'= { Set-KerberosEncryptionTypes }
     'EnableRecycleBin'                      = { Enable-RecycleBin -TargetDomain $script:Config.TargetDomain -FunctionalLevels $functionalLevels }
