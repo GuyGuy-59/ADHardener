@@ -3,8 +3,23 @@
     Interactive rollback tool for Sec_AD changes.
 
 .DESCRIPTION
-    Lists available backups (state, ACL, Pre-Windows 2000 group membership)
-    and lets the user pick one to restore. Always supports -WhatIf.
+    Restores the changes made by ADHardened. The recommended way is the rollback journal:
+    every run writes ONE file backups\journal\rollback_<timestamp>.json, and -JournalFile /
+    -LastJournal replays it in reverse order (newest change undone first).
+    The former per-type backups (state, ACL, Pre-Windows 2000) are still supported.
+    Always supports -WhatIf.
+
+.PARAMETER JournalFile
+    Path to a rollback_*.json journal to restore (all entries, newest first).
+
+.PARAMETER LastJournal
+    Restore the most recent journal.
+
+.PARAMETER ShowJournal
+    Display the content of the journal selected by -JournalFile / -LastJournal and exit.
+
+.PARAMETER Force
+    With a journal: replay entries even if they are already marked as restored.
 
 .PARAMETER List
     Just list available backups and exit.
@@ -23,7 +38,15 @@
 
 .EXAMPLE
     .\restore.ps1 -List
-    Show available backups.
+    Show available journals and backups.
+
+.EXAMPLE
+    .\restore.ps1 -LastJournal -WhatIf
+    Preview the undo of the last run.
+
+.EXAMPLE
+    .\restore.ps1 -JournalFile .\backups\journal\rollback_20260510_213601.json
+    Undo that run, newest change first.
 
 .EXAMPLE
     .\restore.ps1 -StateBackupFile .\backups\state_backup_20260510_213601.json -All -WhatIf
@@ -41,6 +64,11 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [Parameter()] [switch]$List,
+
+    [Parameter()] [string]$JournalFile,
+    [Parameter()] [switch]$LastJournal,
+    [Parameter()] [switch]$ShowJournal,
+    [Parameter()] [switch]$Force,
 
     [Parameter()] [string]$StateBackupFile,
     [Parameter()] [string]$ACLBackupFile,
@@ -67,7 +95,7 @@ if (-not $BackupDirectory) {
 Import-Module ActiveDirectory -ErrorAction Stop
 Import-Module GroupPolicy     -ErrorAction Stop
 
-$customModules = @('Logging.psm1', 'StateManagement.psm1')
+$customModules = @('Logging.psm1', 'Journal.psm1', 'StateManagement.psm1')
 foreach ($m in $customModules) {
     $path = Join-Path $scriptPath "Modules\$m"
     if (-not (Test-Path $path)) {
@@ -86,9 +114,18 @@ Initialize-Logging -LogDirectory $logDir -Prefix 'restore' | Out-Null
 Write-Log 'Sec_AD restore started' -Level INFO -Color Cyan
 
 # --- List mode ---
+$journalDir = Join-Path $BackupDirectory 'journal'
+
 if ($List) {
+    $journals = Get-RunJournalFiles -JournalDirectory $journalDir
+    Write-Host "`n=== Rollback journals in $journalDir ===" -ForegroundColor Cyan
+    Write-Host "`nRun journals ($($journals.Count)) - restore with -JournalFile <path> or -LastJournal:" -ForegroundColor Yellow
+    foreach ($f in $journals) {
+        Write-Host ("  {0}  ({1:yyyy-MM-dd HH:mm})" -f $f.Name, $f.LastWriteTime)
+    }
+
     $backups = Get-AvailableBackups -BackupDirectory $BackupDirectory
-    Write-Host "`n=== Available backups in $BackupDirectory ===" -ForegroundColor Cyan
+    Write-Host "`n=== Legacy backups in $BackupDirectory ===" -ForegroundColor Cyan
 
     Write-Host "`nState baselines ($($backups.State.Count)):" -ForegroundColor Yellow
     foreach ($f in $backups.State) {
@@ -108,6 +145,28 @@ if ($List) {
 
 # --- Restore actions ---
 $didSomething = $false
+
+if ($LastJournal -and -not $JournalFile) {
+    $latest = Get-LatestRunJournal -JournalDirectory $journalDir
+    if (-not $latest) { Write-Host "No journal found in $journalDir" -ForegroundColor Red; exit 1 }
+    $JournalFile = $latest.FullName
+}
+
+if ($JournalFile) {
+    $didSomething = $true
+    if ($ShowJournal) {
+        Show-RunJournal -JournalFile $JournalFile
+    } else {
+        Show-RunJournal -JournalFile $JournalFile
+        $params = @{ JournalFile = $JournalFile }
+        if ($Force)            { $params.Force = $true }
+        if ($WhatIfPreference) { $params.WhatIf = $true }
+        $summary = Restore-RunJournal @params
+        if ($summary -and $summary.Failed -gt 0) {
+            Write-Log "Some entries could not be restored (see above)." -Level WARN
+        }
+    }
+}
 
 if ($StateBackupFile) {
     $didSomething = $true
@@ -159,6 +218,8 @@ if (-not $didSomething) {
     Write-Host "`nNo action specified. Use -List to see backups, or specify a backup file." -ForegroundColor Yellow
     Write-Host "Examples:" -ForegroundColor Gray
     Write-Host "  .\restore.ps1 -List" -ForegroundColor Gray
+    Write-Host "  .\restore.ps1 -LastJournal -WhatIf" -ForegroundColor Gray
+    Write-Host "  .\restore.ps1 -JournalFile <path>" -ForegroundColor Gray
     Write-Host "  .\restore.ps1 -StateBackupFile <path> -All -WhatIf" -ForegroundColor Gray
     Write-Host "  .\restore.ps1 -ACLBackupFile <path>" -ForegroundColor Gray
     exit 1

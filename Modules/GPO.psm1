@@ -15,6 +15,41 @@
       - Resolve-TierSubOUMapping     : (internal) resolve tier config to a list of {OU, GPOs} pairs
 #>
 
+# Rollback journal hooks: no-ops when Journal.psm1 is not loaded (functions usable standalone)
+if (-not (Get-Command -Name Add-JournalEntry -ErrorAction SilentlyContinue)) {
+    function Add-JournalEntry { param([string]$Type, [string]$Description, [hashtable]$Data) }
+}
+if (-not (Get-Command -Name Get-RunJournalDirectory -ErrorAction SilentlyContinue)) {
+    function Get-RunJournalDirectory { return $null }
+}
+
+function Get-GpoBackupInfo {
+    <#
+    .SYNOPSIS
+        List the GPO backups of a folder from their small bkupInfo.xml (no need to parse gpreport.xml).
+    .OUTPUTS
+        Objects: Name, BackupId (GUID without braces), Folder, BackupTime. One object per backup folder.
+    #>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string]$BackupPath)
+
+    if (-not (Test-Path $BackupPath)) { return @() }
+    $cdata = { param($raw, $tag) [regex]::Match([string]$raw, "<$tag><!\[CDATA\[(.*?)\]\]></$tag>").Groups[1].Value }
+    foreach ($dir in Get-ChildItem -Path $BackupPath -Directory -ErrorAction SilentlyContinue) {
+        $infoFile = Join-Path $dir.FullName 'bkupInfo.xml'
+        if ($dir.Name -notmatch '^\{[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\}$' -or -not (Test-Path $infoFile)) { continue }
+        $raw  = Get-Content -Path $infoFile -Raw
+        $name = & $cdata $raw 'GPODisplayName'
+        if (-not $name) { continue }
+        [PSCustomObject]@{
+            Name       = $name
+            BackupId   = $dir.Name.Trim('{}')
+            Folder     = $dir.FullName
+            BackupTime = & $cdata $raw 'BackupTime'      # ISO 8601: sorts as text
+        }
+    }
+}
+
 function Get-GPOsToImport {
     param (
         [hashtable]$FunctionalLevels,
@@ -60,55 +95,49 @@ function Import-SecurityHardeningGPOs {
         Write-Log "Source path: $absoluteBackupPath" -Level INFO
 
         Write-Log "`n-> Scanning for GPO backups..." -Level INFO
-        $gpoBackups = Get-ChildItem -Path $absoluteBackupPath -Directory
-        Write-Log "  Found $($gpoBackups.Count) backup folders" -Level DEBUG
+        $allBackups = @(Get-GpoBackupInfo -BackupPath $absoluteBackupPath)
+        Write-Log "  Found $($allBackups.Count) backup folders" -Level DEBUG
         Write-Log "  Total GPOs to import: $($gposToImport.Count)" -Level DEBUG
 
-        if ($gpoBackups.Count -eq 0) {
+        if ($allBackups.Count -eq 0) {
             Write-Error "[X] No GPO backup folders found in: $absoluteBackupPath"
             Write-Error "[X] Please ensure the GPO backup files are present in the specified directory"
             return
         }
 
-        foreach ($backup in $gpoBackups) {
-            Write-Log "`n-> Processing backup: $($backup.Name)" -Level INFO
+        # Only the GPOs of the current functional level; when a GPO was backed up several times,
+        # import the most recent backup only (instead of importing it once per backup)
+        $selected = @($allBackups | Where-Object { $_.Name -in $gposToImport } |
+                      Group-Object Name |
+                      ForEach-Object { $_.Group | Sort-Object BackupTime -Descending | Select-Object -First 1 } |
+                      Sort-Object Name)
+        Write-Log "  Selected $($selected.Count) backup(s) (others are not in the list for this functional level)" -Level DEBUG
+
+        foreach ($backup in $selected) {
+            $gpoName = $backup.Name
+            Write-Log "`n-> Importing GPO: $gpoName" -Level INFO
+            Write-Log "  -> Backup ID: $($backup.BackupId)  Path: $($backup.Folder)" -Level DEBUG
 
             try {
-                if ($backup.Name -match '^\{[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}\}$') {
-                    $backupId  = $backup.Name -replace '[{}]', ''
-                    $reportPath = Join-Path $backup.FullName "gpreport.xml"
-
-                    if (-not (Test-Path $reportPath)) {
-                        Write-Error "  [X] GPO report file not found: $reportPath"
-                        continue
+                if ($PSCmdlet.ShouldProcess($gpoName, "Import GPO from $($backup.Folder)")) {
+                    # Record the pre-run state so the import can be undone
+                    $journalDir  = Get-RunJournalDirectory
+                    $existingGpo = Get-GPO -Name $gpoName -Domain $TargetDomain -ErrorAction SilentlyContinue
+                    $entryData   = @{ GpoName = $gpoName; Domain = $TargetDomain; Created = (-not $existingGpo) }
+                    if ($existingGpo -and $journalDir) {
+                        $preImportDir = Join-Path $journalDir "gpo_preimport_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+                        New-Item -ItemType Directory -Path $preImportDir -Force -WhatIf:$false -Confirm:$false | Out-Null
+                        $preBackup = Backup-GPO -Name $gpoName -Domain $TargetDomain -Path $preImportDir -ErrorAction Stop
+                        $entryData.BackupId   = "$($preBackup.Id)"
+                        $entryData.BackupPath = $preImportDir
                     }
-
-                    [xml]$report = Get-Content $reportPath
-                    $gpoName = $report.GPO.Name
-
-                    if ($gpoName -notin $gposToImport) {
-                        Write-Log "  [!] Skipping GPO: $gpoName (not in list for current functional level)" -Level DEBUG
-                        continue
-                    }
-
-                    Write-Log "  -> Importing GPO: $gpoName" -Level INFO
-                    Write-Log "  -> Backup ID: $backupId  Path: $($backup.FullName)" -Level DEBUG
-
-                    try {
-                        if ($PSCmdlet.ShouldProcess($gpoName, "Import GPO from $($backup.FullName)")) {
-                            Import-GPO -BackupId $backupId -TargetName $gpoName -Path $absoluteBackupPath -Domain $TargetDomain -CreateIfNeeded -ErrorAction Stop
-                            Write-Log "  [OK] GPO imported successfully" -Level SUCCESS
-                        }
-                    } catch {
-                        Write-Error "  [X] Failed to import GPO: $_"
-                        Write-Error "  [X] Verify: backup complete, sufficient permissions, domain accessible, path correct: $absoluteBackupPath"
-                        continue
-                    }
-                } else {
-                    Write-Warning "  [!] Invalid backup folder format (expected {GUID}): $($backup.Name)"
+                    Add-JournalEntry -Type GpoImport -Description "GPO $gpoName$(if ($existingGpo) { ' (overwritten)' } else { ' (created)' })" -Data $entryData
+                    Import-GPO -BackupId $backup.BackupId -TargetName $gpoName -Path $absoluteBackupPath -Domain $TargetDomain -CreateIfNeeded -ErrorAction Stop
+                    Write-Log "  [OK] GPO imported successfully" -Level SUCCESS
                 }
             } catch {
-                Write-Error "  [X] Failed to process GPO from folder $($backup.Name): $_"
+                Write-Error "  [X] Failed to import GPO ${gpoName}: $_"
+                Write-Error "  [X] Verify: backup complete (and registered in manifest.xml), sufficient permissions, domain accessible, path correct: $absoluteBackupPath"
                 continue
             }
         }
@@ -267,6 +296,7 @@ function Set-GPOsToTiers {
 
                         if ($PSCmdlet.ShouldProcess($TargetOU, "Link GPO '$gpoName'")) {
                             New-GPLink -Name $gpoName -Target $TargetOU -Domain $TargetDomain -LinkEnabled Yes -ErrorAction Stop | Out-Null
+                            Add-JournalEntry -Type GpoLink -Description "Link $gpoName -> $TargetOU" -Data @{ GpoName = $gpoName; Target = $TargetOU; Domain = $TargetDomain }
                             Write-Log "     [OK] Linked: $gpoName" -Level SUCCESS
                             $summary.Linked++
                         }
@@ -291,4 +321,4 @@ function Set-GPOsToTiers {
     }
 }
 
-Export-ModuleMember -Function Import-SecurityHardeningGPOs, Set-GPOsToTiers, Resolve-TierSubOUMapping
+Export-ModuleMember -Function Import-SecurityHardeningGPOs, Set-GPOsToTiers, Resolve-TierSubOUMapping, Get-GPOsToImport, Get-GpoBackupInfo

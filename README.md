@@ -101,6 +101,11 @@ ADHardened is designed to be:
   * Workstations
   * Users
   * Administrators
+* Network baseline GPOs:
+
+  * `Firewall-Hardened`: firewall enabled on all profiles, inbound blocked by default
+  * `WinRM-Server-Hardened` / `WinRM-Client-Hardened`: no Basic / Digest / CredSSP / unencrypted traffic, channel binding Strict, listener filter
+  * `PowerShellv2-Disabled`: PowerShell 2.0 engine removed (same idea as `SMBv1-Disabled`)
 
 ### Active Directory Hardening
 
@@ -116,6 +121,12 @@ ADHardened is designed to be:
 * Privileged group auditing
 * Authentication Policy Silos
 * Tier OU ACL delegation
+* Fine-Grained Password Policies (PSO) per population: tier admins, service accounts, standard users
+
+### Reporting
+
+* `-ReportOnly` mode: read-only evaluation of every control
+* Self-contained HTML report, plus CSV and JSON, with a compliance score (overall and per category)
 
 ### Operational Safety
 
@@ -123,7 +134,7 @@ ADHardened is designed to be:
 * Centralized logging
 * Severity-based log levels
 * JSON state baseline capture
-* Best-effort rollback
+* Best-effort rollback driven by one rollback journal per run
 * `-WhatIf` support
 * `-DryRun` mode
 * Offline Pester test suite
@@ -234,6 +245,41 @@ Dry-run mode:
 
 ---
 
+### Report only (hardening score)
+
+```powershell
+.\adhardened.ps1 -ReportOnly
+```
+
+Read-only. Nothing is modified and no rollback journal is created. The script evaluates the
+**current** state of the domain for every control (domain hardening, Tier 0 protection, PSO,
+GPO import and linking) and writes:
+
+```text
+reports/hardening_report_YYYYMMDD_HHMMSS.html   readable report (open in a browser)
+reports/hardening_report_YYYYMMDD_HHMMSS.csv    one line per control
+reports/hardening_report_YYYYMMDD_HHMMSS.json   results + score
+```
+
+The HTML file is self-contained (no external resource, safe to mail or archive): score gauge,
+score per category, status counters, and a table filterable by status and searchable by text.
+Light/dark theme follows the system setting.
+
+Each line has a `Status`:
+
+| Status | Meaning |
+| --- | --- |
+| `Compliant` | The control is in place |
+| `NonCompliant` | Missing or only partly applied (`Remediation` says which function to enable) |
+| `NotApplicable` | Cannot be evaluated (OU missing, GPO without backup in the repository...) - not scored |
+| `Error` | The check itself failed - not scored |
+
+`Score = Compliant / (Compliant + NonCompliant)`, reported overall and per category. The column
+`ConfiguredToApply` shows whether the control is enabled in `Global_config.json`, so you can tell
+"not yet applied" from "not intended".
+
+---
+
 ### WhatIf mode
 
 ```powershell
@@ -262,13 +308,21 @@ Not recommended:
 
 ---
 
-### Skip state backup
+### Skip the rollback journal
 
-Not recommended:
+Not recommended (the run cannot be restored afterwards):
 
 ```powershell
 .\adhardened.ps1 -SkipBackup
 ```
+
+### Also capture the legacy state baseline
+
+```powershell
+.\adhardened.ps1 -LegacyStateBackup
+```
+
+---
 
 ---
 
@@ -280,21 +334,26 @@ Not recommended:
 logs/adhardened_YYYYMMDD_HHMMSS.log
 ```
 
-### State backups
+### Rollback journal (one file per run)
+
+```text
+backups/journal/rollback_YYYYMMDD_HHMMSS.json
+backups/journal/gpo_preimport_*/          previous content of GPOs overwritten by the run
+```
+
+### Reports
+
+```text
+reports/hardening_report_YYYYMMDD_HHMMSS.html
+reports/hardening_report_YYYYMMDD_HHMMSS.csv
+reports/hardening_report_YYYYMMDD_HHMMSS.json
+```
+
+### Legacy backups (only with `-LegacyStateBackup` or older versions)
 
 ```text
 backups/state_backup_YYYYMMDD_HHMMSS.json
-```
-
-### ACL backups
-
-```text
 backups/acl/acl_*.json
-```
-
-### Pre-Windows 2000 backups
-
-```text
 backups/preWin2000_members_*.json
 ```
 
@@ -331,6 +390,7 @@ Example:
         "SetADSIUnauthenticatedBind": true,
         "SetDsHeuristicsLDAPSecurity": true,
         "SetTierOUDelegation": false,
+        "SetFineGrainedPasswordPolicies": false,
         "NewTier0AuthenticationPolicySilo": false,
         "LockPreWindows2000Group": false,
         "GetPrivilegedGroupAudit": false,
@@ -348,6 +408,31 @@ Security-sensitive functions are disabled by default and must be explicitly enab
 Defines which GPOs are linked to which tiers and organizational units.
 
 See [GPO Linking Strategy](#gpo-linking-strategy).
+
+---
+
+### PSO_config.json
+
+Fine-Grained Password Policies, applied by `SetFineGrainedPasswordPolicies` (domain functional level 2008 or later).
+One PSO per population, each targeting global security groups:
+
+| PSO | Precedence | Min length | Lockout | Groups |
+| --- | --- | --- | --- | --- |
+| `PSO-Tier0-Admins` | 10 | 16 | 3 failures / 15 min | `Tier0_Admins` |
+| `PSO-Tier1-Admins` | 20 | 15 | 3 failures / 15 min | `Tier1_Admins`, `Tier1_Legacy_Admins` |
+| `PSO-Tier2-Admins` | 30 | 15 | 3 failures / 15 min | `Tier2_Admins` |
+| `PSO-Service-Accounts` | 40 | 25 | none (a lockout would be a denial of service) | `Service-Accounts` |
+| `PSO-Standard-Users` | 100 | 12 | 3 failures / 15 min | `Tier2_Users` |
+
+Behavior:
+
+* Idempotent: a PSO that already matches is left untouched; subjects already applied are skipped.
+* A missing group is skipped with a warning (the group `Service-Accounts` is not created by ADHardened).
+* Every change goes into the rollback journal (PSO created, previous settings, subject added).
+* The Default Domain Policy is **not** modified. PSOs only affect members of the listed groups.
+* Check the result with `Get-ADUserResultantPasswordPolicy -Identity <user>`.
+
+Test the lockout settings on administrator accounts in a lab first.
 
 ---
 
@@ -409,6 +494,31 @@ Responsibilities:
 
 ---
 
+### Journal.psm1
+
+Single per-run rollback journal.
+
+Responsibilities:
+
+* One `rollback_<timestamp>.json` per run, flushed after every change
+* Entries for attributes, created objects, ACLs, group members, GPO imports and links, PSO, silo assignments
+* Replay in reverse order (`Restore-RunJournal`)
+* No-op when no journal is active, so hardening functions still work standalone
+
+---
+
+### Reporting.psm1
+
+Read-only hardening report.
+
+Responsibilities:
+
+* Evaluate AD hardening, Tier 0 protection, PSO and GPO import / linking
+* Compliance score overall and per category
+* HTML (self-contained), CSV and JSON export
+
+---
+
 ### Validation.psm1
 
 Preflight validation.
@@ -425,7 +535,7 @@ Checks:
 
 ### StateManagement.psm1
 
-State management and rollback.
+Legacy state baseline (superseded by `Journal.psm1`, kept for older backups and `-LegacyStateBackup`).
 
 Responsibilities:
 
@@ -729,13 +839,60 @@ is explicitly provided.
 
 ## ↩️ Rollback
 
-ADHardened captures state before applying changes.
+Every run that modifies Active Directory writes **one rollback journal**:
+
+```text
+backups/journal/rollback_YYYYMMDD_HHMMSS.json
+```
+
+Each change is appended with what is needed to undo it, and the file is flushed after every entry
+(it is usable even if the run crashes). `restore.ps1` replays the journal **in reverse order**, so
+the newest change is undone first: links before GPOs, child OUs before parent OUs.
 
 The `restore.ps1` script remains a separate entry point from `adhardened.ps1`.
-
 This separation prevents mixing deployment and rollback workflows.
 
+### Journal restore
+
+```powershell
+# List journals
+.\restore.ps1 -List
+
+# Show the content of the last journal
+.\restore.ps1 -LastJournal -ShowJournal
+
+# Preview, then restore, the last run
+.\restore.ps1 -LastJournal -WhatIf
+.\restore.ps1 -LastJournal
+
+# Restore a specific run
+.\restore.ps1 -JournalFile .\backups\journal\rollback_20260510_213601.json
+```
+
+Behavior:
+
+* One confirmation for the whole journal; `-WhatIf` lists every entry that would be undone.
+* A failing entry is reported and skipped, the others are still processed.
+* Undone entries are marked `RestoredAt`; they are not replayed unless `-Force` is given.
+
+| Entry type | Recorded by | Undo |
+| --- | --- | --- |
+| `AdAttribute` | ADSI bind, dSHeuristics, MachineAccountQuota, Kerberos encryption types | Previous value restored, or attribute cleared |
+| `AdObjectCreated` | OUs, groups, authentication policy / silo | Object removed (only if it has no child) |
+| `AdAcl` | Tier OU delegation, LAPS permissions | Previous security descriptor restored |
+| `GroupMember` | Pre-Windows 2000 lockdown, privileged group removal | Member re-added |
+| `AccountNotDelegated` | Tier 0 sensitive accounts | Previous flag restored |
+| `GpoImport` | GPO import | GPO removed if created, otherwise previous content re-imported from `gpo_preimport_*` |
+| `GpoLink` | GPO linking | Link removed |
+| `Pso`, `PsoSubject` | Fine-grained password policies | PSO removed / previous settings restored; subject removed |
+| `SiloMember` | Authentication policy silo members | Silo assignment cleared |
+| `Irreversible` | Recycle Bin, LAPS schema, updated existing policy / silo | Reported as a manual action |
+
 ---
+
+### Legacy backup types
+
+Older runs (and `-LegacyStateBackup`) produce separate per-type backups, still restorable below.
 
 ### Available backup types
 
@@ -897,7 +1054,7 @@ Examples:
 
 * Active Directory Recycle Bin enablement
 * LAPS schema updates
-* GPO content imports
+* Updates of an already existing authentication policy / silo (previous settings are not recorded)
 * OUs containing user-created child objects
 
 Rollback is therefore **best effort** and should not replace a complete Active Directory backup strategy.
@@ -916,7 +1073,8 @@ Before using it in production:
 * Review every GPO.
 * Validate the impact on legacy applications.
 * Maintain full System State backups of Domain Controllers.
-* Use JSON state backups as a complement, not a replacement.
+* Use the rollback journal as a complement, not a replacement.
+* Review the firewall GPO (`Firewall-Hardened`) on a pilot OU first: inbound traffic not allowed by an enabled rule is blocked.
 * Review all advanced hardening functions before enabling them.
 * Start Authentication Policy Silos in `Audit` mode.
 * Monitor Domain Controller security logs after changes.
@@ -979,6 +1137,10 @@ The test runner automatically installs Pester 5 or later if required.
 * [x] Modular PowerShell architecture
 * [x] Granular GPO linking per sub-OU
 * [x] State restore for hardening changes
+* [x] `-ReportOnly` mode with HTML / CSV / JSON report and compliance score
+* [x] Fine-Grained Password Policies (PSO)
+* [x] Firewall, WinRM and legacy feature removal GPOs
+* [x] Single rollback journal per run
 
 ### Planned
 
@@ -987,8 +1149,7 @@ The test runner automatically installs Pester 5 or later if required.
 * [ ] Automated Pester execution
 * [ ] Extended hybrid Active Directory support
 * [ ] Additional security baseline profiles
-* [ ] Enhanced security reporting
-* [ ] Compliance-oriented output
+* [ ] Per-machine posture report (local state of firewall, WinRM, SMBv1, PowerShell 2.0)
 * [ ] Additional Tier 0 protection controls
 
 ---

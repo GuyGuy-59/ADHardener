@@ -13,6 +13,11 @@
       - Initialize-ADStructure : build the full ADM + tier OU tree and create baseline security groups
 #>
 
+# Rollback journal hook: no-op when Journal.psm1 is not loaded (functions usable standalone)
+if (-not (Get-Command -Name Add-JournalEntry -ErrorAction SilentlyContinue)) {
+    function Add-JournalEntry { param([string]$Type, [string]$Description, [hashtable]$Data) }
+}
+
 function New-OU {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param (
@@ -34,6 +39,7 @@ function New-OU {
 
         if ($PSCmdlet.ShouldProcess($OUPath, 'Create OU')) {
             New-ADOrganizationalUnit -Name $OUName -Path $ParentDN -ErrorAction Stop
+            Add-JournalEntry -Type AdObjectCreated -Description "OU $OUPath" -Data @{ Dn = $OUPath; ObjectClass = 'organizationalUnit' }
             Write-Log "  [OK] OU created successfully" -Level SUCCESS
         }
         return $OUPath
@@ -65,6 +71,10 @@ function New-Group {
 
         if ($PSCmdlet.ShouldProcess($GroupName, "Create $GroupScope group in $ParentOU")) {
             New-ADGroup -Name $GroupName -GroupScope $GroupScope -Path $ParentOU -GroupCategory Security -ErrorAction Stop
+            $createdGroup = Get-ADGroup -Filter "Name -eq '$GroupName'" -SearchBase $ParentOU -ErrorAction SilentlyContinue
+            if ($createdGroup) {
+                Add-JournalEntry -Type AdObjectCreated -Description "Group $GroupName" -Data @{ Dn = $createdGroup.DistinguishedName; ObjectClass = 'group' }
+            }
             Write-Log "  [OK] Group created successfully" -Level SUCCESS
         }
     } catch {

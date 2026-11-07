@@ -28,6 +28,11 @@
 #>
 
 
+# Rollback journal hook: no-op when Journal.psm1 is not loaded (functions usable standalone)
+if (-not (Get-Command -Name Add-JournalEntry -ErrorAction SilentlyContinue)) {
+    function Add-JournalEntry { param([string]$Type, [string]$Description, [hashtable]$Data) }
+}
+
 function Set-ADSIUnauthenticatedBind {
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
@@ -58,6 +63,10 @@ function Set-ADSIUnauthenticatedBind {
             }
 
             if ($PSCmdlet.ShouldProcess($directoryServiceDn, 'Set DenyUnauthenticatedBind=1')) {
+                Add-JournalEntry -Type AdAttribute -Description 'msDS-Other-Settings (DenyUnauthenticatedBind)' -Data @{
+                    Dn = $directoryServiceDn; Attribute = 'msDS-Other-Settings'
+                    Existed = (@($currentValue).Count -gt 0); Kind = 'Strings'; OldValue = @($currentValue)
+                }
                 Set-ADObject -Identity $directoryServiceDn -Replace @{ "msDS-Other-Settings" = $newValue }
                 Write-Log "[OK] Successfully configured DenyUnauthenticatedBind=1" -Level SUCCESS
             }
@@ -135,6 +144,10 @@ function Set-DsHeuristicsLDAPSecurity {
         Write-Log "New dSHeuristics value to apply: $newValue" -Level INFO
 
         if ($PSCmdlet.ShouldProcess($directoryServiceDn, "Set dSHeuristics = $newValue")) {
+            Add-JournalEntry -Type AdAttribute -Description 'dSHeuristics (CVE-2021-42291)' -Data @{
+                Dn = $directoryServiceDn; Attribute = 'dSHeuristics'
+                Existed = (-not [string]::IsNullOrEmpty($current)); Kind = 'String'; OldValue = $current
+            }
             Set-ADObject -Identity $directoryServiceDn -Replace @{ "dSHeuristics" = $newValue }
             Write-Log "[OK] dSHeuristics updated - LDAPAddAutZVerifications/LDAPOwnerModify set to 1 (mitigation enabled)" -Level SUCCESS
         }
@@ -165,6 +178,10 @@ function Set-msDSMachineAccountQuota {
         if ($currentQuota -ne 0) {
             if ($PSCmdlet.ShouldProcess($domainDN, 'Set ms-DS-MachineAccountQuota = 0')) {
                 Write-Log "[!] Updating ms-DS-MachineAccountQuota to 0..." -Level WARN
+                Add-JournalEntry -Type AdAttribute -Description 'ms-DS-MachineAccountQuota' -Data @{
+                    Dn = $domainDN; Attribute = 'ms-DS-MachineAccountQuota'
+                    Existed = ($null -ne $currentQuota); Kind = 'Int'; OldValue = $currentQuota
+                }
                 Set-ADObject -Identity $domainDN -Replace @{ "ms-DS-MachineAccountQuota" = 0 }
                 Write-Log "[OK] Successfully set ms-DS-MachineAccountQuota to 0" -Level SUCCESS
             }
@@ -204,6 +221,7 @@ function Enable-RecycleBin {
             Write-Log "[!] Enabling Active Directory Recycle Bin..." -Level WARN
             try {
                 if ($PSCmdlet.ShouldProcess($TargetDomain, 'Enable AD Recycle Bin (irreversible)')) {
+                    Add-JournalEntry -Type Irreversible -Description 'AD Recycle Bin enabled (cannot be disabled)'
                     Enable-ADOptionalFeature -Identity $recycleBinFeature -Scope ForestOrConfigurationSet -Target $TargetDomain -Confirm:$false
                     Write-Log "[OK] Active Directory Recycle Bin has been successfully enabled." -Level SUCCESS
                 }
@@ -238,6 +256,7 @@ function Enable-LAPS {
         $lapsFeature = Get-Command -Module LAPS
         if ($lapsFeature) {
             if ($PSCmdlet.ShouldProcess('AD Schema', 'Update LAPS schema')) {
+                Add-JournalEntry -Type Irreversible -Description 'LAPS AD schema extended (cannot be reverted)'
                 Update-LapsADSchema -Verbose -Confirm:$false
                 Write-Log "[!] Updating LAPS AD Schema..." -Level WARN
             }
@@ -248,7 +267,12 @@ function Enable-LAPS {
                 @{ Name = "$TargetDomain\LAPS-Pwd-Read-T0"; Path = "OU=PAW,OU=_Tier0,$domainDN" }
             )
             foreach ($w in $workstationsOU) {
-            
+
+                if ($PSCmdlet.ShouldProcess($w.Path, 'Set LAPS permissions')) {
+                    Add-JournalEntry -Type AdAcl -Description "ACL of $($w.Path) (LAPS permissions)" -Data @{
+                        Dn = $w.Path; Sddl = (Get-Acl -Path "AD:$($w.Path)").Sddl
+                    }
+                }
                 Set-LapsADComputerSelfPermission -Identity $w.Path
                 Write-Host "[OK] Setting LAPS AD Computer Self Permission..." -ForegroundColor Yellow
                 
@@ -308,6 +332,11 @@ function Set-KerberosEncryptionTypes {
             }
 
             if ($currentEncryptionTypes -ne $newEncryptionTypes) {
+                Add-JournalEntry -Type AdAttribute -Description "msDS-SupportedEncryptionTypes of $AccountName" -Data @{
+                    Dn = $Account.DistinguishedName; Attribute = 'msDS-SupportedEncryptionTypes'
+                    Existed = ($null -ne $Account."msDS-SupportedEncryptionTypes"); Kind = 'Int'
+                    OldValue = $Account."msDS-SupportedEncryptionTypes"
+                }
                 Set-ADObject -Identity $Account -Replace @{"msDS-SupportedEncryptionTypes" = $newEncryptionTypes}
                 if ($?) {
                     $updatedAccount = Get-ADObject -Identity $Account -Property msDS-SupportedEncryptionTypes
@@ -481,6 +510,7 @@ function Set-TierOUDelegation {
             try {
                 New-ADGroup -Name $AdminGroupName -GroupScope DomainLocal -GroupCategory Security -Path $groupsOU -ErrorAction Stop
                 $adminGroup = Get-ADGroup -Filter "Name -eq '$AdminGroupName'"
+                Add-JournalEntry -Type AdObjectCreated -Data @{ Dn = $adminGroup.DistinguishedName; ObjectClass = 'group' }
             } catch {
                 Write-Log "  [X] Failed to create $AdminGroupName : $($_.Exception.Message)" -Level ERROR
                 return
@@ -508,6 +538,7 @@ function Set-TierOUDelegation {
 
     $aclPath = "AD:$tierOU"
     $acl = Get-Acl -Path $aclPath
+    $originalSddl = $acl.Sddl
 
     # Allow FullControl for the tier admin group (inherit to descendants)
     $allRights = [System.DirectoryServices.ActiveDirectoryRights]::GenericAll
@@ -534,6 +565,7 @@ function Set-TierOUDelegation {
 
     if ($PSCmdlet.ShouldProcess($tierOU, "Apply ACL: Allow $AdminGroupName / Deny $($OtherTierAdminGroups -join ', ')")) {
         try {
+            Add-JournalEntry -Type AdAcl -Description "ACL of $tierOU (tier delegation)" -Data @{ Dn = $tierOU; Sddl = $originalSddl }
             Set-Acl -Path $aclPath -AclObject $acl -ErrorAction Stop
             Write-Log "  [OK] ACL applied to $tierOU" -Level SUCCESS
         } catch {
@@ -628,6 +660,7 @@ function New-Tier0AuthenticationPolicySilo {
                     -UserAllowedToAuthenticateFrom $userAllowedToAuthenticateFrom `
                     -ComputerAllowedToAuthenticateTo $computerAllowedToAuthTo `
                     -ErrorAction Stop
+                Add-JournalEntry -Type Irreversible -Description "Authentication policy '$PolicyName' updated (Enforce/conditions): previous settings not recorded, review manually"
                 Write-Log "  [OK] Policy updated: Enforce=$enforce, conditions set" -Level SUCCESS
             } catch {
                 Write-Log "  [X] Failed to update policy: $($_.Exception.Message)" -Level ERROR
@@ -646,6 +679,10 @@ function New-Tier0AuthenticationPolicySilo {
                     -ComputerAllowedToAuthenticateTo $computerAllowedToAuthTo `
                     -Enforce:$enforce `
                     -ErrorAction Stop
+                $createdPolicy = Get-ADAuthenticationPolicy -Identity $PolicyName -ErrorAction SilentlyContinue
+                if ($createdPolicy) {
+                    Add-JournalEntry -Type AdObjectCreated -Description "Authentication policy $PolicyName" -Data @{ Dn = $createdPolicy.DistinguishedName; ObjectClass = 'msDS-AuthNPolicy' }
+                }
                 Write-Log "  [OK] Policy created: $PolicyName (TGT lifetime: ${TGTLifetimeMinutes}m, Enforce=$enforce)" -Level SUCCESS
                 Write-Log "      Condition (User -> Tier 0)  : user.AuthenticationSilo == '$SiloName'" -Level INFO
                 Write-Log "      Condition (Device -> Tier 0): device.AuthenticationSilo == '$SiloName'" -Level INFO
@@ -663,6 +700,7 @@ function New-Tier0AuthenticationPolicySilo {
         if ($PSCmdlet.ShouldProcess($SiloName, "Set Mode=$Mode (Enforce=$enforce)")) {
             try {
                 Set-ADAuthenticationPolicySilo -Identity $SiloName -Enforce:$enforce -ErrorAction Stop
+                Add-JournalEntry -Type Irreversible -Description "Authentication policy silo '$SiloName' updated (Enforce): previous mode not recorded, review manually"
                 Write-Log "  [OK] Silo updated: Enforce=$enforce" -Level SUCCESS
             } catch {
                 Write-Log "  [X] Failed to update silo: $($_.Exception.Message)" -Level ERROR
@@ -679,6 +717,10 @@ function New-Tier0AuthenticationPolicySilo {
                     -ServiceAuthenticationPolicy $PolicyName `
                     -Enforce:$enforce `
                     -ErrorAction Stop
+                $createdSilo = Get-ADAuthenticationPolicySilo -Identity $SiloName -ErrorAction SilentlyContinue
+                if ($createdSilo) {
+                    Add-JournalEntry -Type AdObjectCreated -Description "Authentication policy silo $SiloName" -Data @{ Dn = $createdSilo.DistinguishedName; ObjectClass = 'msDS-AuthNPolicySilo' }
+                }
                 Write-Log "  [OK] Silo created: $SiloName (Enforce=$enforce)" -Level SUCCESS
             } catch {
                 Write-Log "  [X] Failed to create silo: $($_.Exception.Message)" -Level ERROR
@@ -741,6 +783,7 @@ function New-Tier0AuthenticationPolicySilo {
                         Grant-ADAuthenticationPolicySiloAccess -Identity $silo -Account $obj.SamAccountName -ErrorAction Stop
                         Set-ADAccountAuthenticationPolicySilo -Identity $obj -AuthenticationPolicySilo $SiloName -ErrorAction Stop
                         Set-ADAccountAuthenticationPolicySilo -Identity $obj -AuthenticationPolicy $PolicyName -ErrorAction SilentlyContinue
+                        Add-JournalEntry -Type SiloMember -Description "Silo ${SiloName}: $sam" -Data @{ Dn = $obj.DistinguishedName; Sam = $obj.SamAccountName; Silo = $SiloName }
                         Write-Log "  [OK] Assigned: $sam" -Level SUCCESS
                     } catch {
                         Write-Log "  [X] Failed to assign $sam : $($_.Exception.Message)" -Level ERROR
@@ -798,6 +841,7 @@ function Add-Tier0SiloMember {
             Grant-ADAuthenticationPolicySiloAccess -Identity $silo -Account $obj.SamAccountName -ErrorAction Stop
             Set-ADAccountAuthenticationPolicySilo -Identity $obj -AuthenticationPolicySilo $SiloName -ErrorAction Stop
             Set-ADAccountAuthenticationPolicySilo -Identity $obj -AuthenticationPolicy $PolicyName -ErrorAction SilentlyContinue
+            Add-JournalEntry -Type SiloMember -Description "Silo ${SiloName}: $Identity" -Data @{ Dn = $obj.DistinguishedName; Sam = $obj.SamAccountName; Silo = $SiloName }
             Write-Log "  [OK] $Identity assigned to silo $SiloName" -Level SUCCESS
         } catch {
             Write-Log "  [X] Failed to assign $Identity : $($_.Exception.Message)" -Level ERROR
@@ -858,6 +902,9 @@ function Lock-PreWindows2000Group {
         if ($PSCmdlet.ShouldProcess($m.SamAccountName, "Remove from Pre-Windows 2000 Compatible Access")) {
             try {
                 Remove-ADGroupMember -Identity $group -Members $m -Confirm:$false -ErrorAction Stop
+                Add-JournalEntry -Type GroupMember -Description "Pre-Windows 2000 Compatible Access: $($m.SamAccountName)" -Data @{
+                    Group = $group.DistinguishedName; Member = $m.distinguishedName; Action = 'Removed'
+                }
                 Write-Log "    [OK] Removed: $($m.SamAccountName)" -Level SUCCESS
             } catch {
                 Write-Log "    [X] Failed to remove $($m.SamAccountName): $($_.Exception.Message)" -Level ERROR
@@ -968,7 +1015,13 @@ function Remove-PrivilegedGroupMember {
 
     if ($PSCmdlet.ShouldProcess("$MemberSamAccountName from $GroupName", 'Remove privileged group membership')) {
         try {
+            $memberObj = Get-ADObject -Filter "SamAccountName -eq '$MemberSamAccountName'" -ErrorAction SilentlyContinue | Select-Object -First 1
             Remove-ADGroupMember -Identity $group -Members $MemberSamAccountName -Confirm:$false -ErrorAction Stop
+            if ($memberObj) {
+                Add-JournalEntry -Type GroupMember -Description "${GroupName}: $MemberSamAccountName" -Data @{
+                    Group = $group.DistinguishedName; Member = $memberObj.DistinguishedName; Action = 'Removed'
+                }
+            }
             Write-Log "  [OK] Removed $MemberSamAccountName from $GroupName" -Level SUCCESS
         } catch {
             Write-Log "  [X] Failed: $($_.Exception.Message)" -Level ERROR
@@ -1018,6 +1071,9 @@ function Set-Tier0AccountSensitive {
         }
         if ($PSCmdlet.ShouldProcess($u.SamAccountName, 'Set AccountNotDelegated = $true')) {
             try {
+                Add-JournalEntry -Type AccountNotDelegated -Description "AccountNotDelegated of $($u.SamAccountName)" -Data @{
+                    Dn = $u.DistinguishedName; OldValue = [bool]$u.AccountNotDelegated
+                }
                 Set-ADUser -Identity $u -AccountNotDelegated $true -ErrorAction Stop
                 Write-Log "  [OK] $($u.SamAccountName): marked sensitive (cannot be delegated)" -Level SUCCESS
             } catch {
@@ -1027,6 +1083,140 @@ function Set-Tier0AccountSensitive {
     }
 }
 
+function Set-FineGrainedPasswordPolicies {
+    <#
+    .SYNOPSIS
+        Create / update Fine-Grained Password Policies (PSO) from PSO_config.json and apply them to groups.
+
+    .DESCRIPTION
+        Replaces the local-only "password and lockout policy" idea of WindowsHardener by the
+        domain-level equivalent: one PSO per population (tier admins, service accounts, standard users).
+        Idempotent: a PSO whose settings already match is left untouched; subjects already linked are skipped.
+        Every change is recorded in the rollback journal (PSO created / previous settings / subject added).
+
+        Subjects are GLOBAL SECURITY GROUPS (SamAccountName). A missing group is skipped with a warning.
+        The default Domain Policy (GptTmpl.inf of the Default Domain Policy) is NOT modified.
+
+    .PARAMETER PsoConfigPath
+        Path to PSO_config.json.
+    .PARAMETER FunctionalLevels
+        Hashtable returned by Test-FunctionalLevel. DomainLevel must be >= 2008.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param(
+        [Parameter(Mandatory)] [string]$PsoConfigPath,
+        [Parameter()] [hashtable]$FunctionalLevels
+    )
+
+    Write-Log "`n=== Configuring Fine-Grained Password Policies (PSO) ===" -Level INFO -Color Cyan
+
+    if (-not (Test-Path $PsoConfigPath)) {
+        Write-Log "  [X] PSO configuration not found: $PsoConfigPath" -Level ERROR
+        throw "PSO configuration not found: $PsoConfigPath"
+    }
+    if ($FunctionalLevels -and $FunctionalLevels.DomainLevel -and $FunctionalLevels.DomainLevel -lt 2008 -and $FunctionalLevels.DomainLevel -ne 2) {
+        # DomainLevel is reported as '2' for Windows2008R2Domain by the current parser; both mean >= 2008 R2
+        Write-Log "  [!] Domain Functional Level >= 2008 required (current: $($FunctionalLevels.DomainLevel)). Skipping PSO." -Level WARN
+        return
+    }
+
+    $cfg  = Get-Content -Path $PsoConfigPath -Raw | ConvertFrom-Json
+    $psos = @($cfg.PSOs)
+    if ($psos.Count -eq 0) { Write-Log '  [!] No PSO defined in configuration' -Level WARN; return }
+
+    $precedences = @($psos | ForEach-Object { [int]$_.Precedence })
+    if (($precedences | Select-Object -Unique).Count -ne $precedences.Count) {
+        throw 'Duplicate Precedence values in PSO_config.json: each PSO needs a unique precedence.'
+    }
+
+    foreach ($p in $psos) {
+        $name = [string]$p.Name
+        Write-Log "`n-> PSO: $name (precedence $($p.Precedence))" -Level INFO
+
+        try {
+            $observation = [TimeSpan]::Parse([string]$p.LockoutObservationWindow)
+            $duration    = [TimeSpan]::Parse([string]$p.LockoutDuration)
+            if ($observation -gt $duration) {
+                throw "LockoutObservationWindow ($observation) must not exceed LockoutDuration ($duration)"
+            }
+            $settings = @{
+                Precedence                  = [int]$p.Precedence
+                ComplexityEnabled           = [bool]$p.ComplexityEnabled
+                ReversibleEncryptionEnabled = [bool]$p.ReversibleEncryptionEnabled
+                LockoutThreshold            = [int]$p.LockoutThreshold
+                LockoutDuration             = $duration
+                LockoutObservationWindow    = $observation
+                MinPasswordLength           = [int]$p.MinPasswordLength
+                PasswordHistoryCount        = [int]$p.PasswordHistoryCount
+                MinPasswordAge              = [TimeSpan]::Parse([string]$p.MinPasswordAge)
+                MaxPasswordAge              = [TimeSpan]::Parse([string]$p.MaxPasswordAge)
+            }
+        } catch {
+            Write-Log "  [X] Invalid settings for ${name}: $($_.Exception.Message)" -Level ERROR
+            continue
+        }
+
+        try {
+            $existing = Get-ADFineGrainedPasswordPolicy -Filter "Name -eq '$name'" -ErrorAction SilentlyContinue
+            $psoReady = $false
+
+            if (-not $existing) {
+                if ($PSCmdlet.ShouldProcess($name, 'Create PSO')) {
+                    New-ADFineGrainedPasswordPolicy -Name $name -Description ([string]$p.Description) `
+                        -ProtectedFromAccidentalDeletion $true @settings -ErrorAction Stop
+                    Add-JournalEntry -Type Pso -Description "PSO $name (created)" -Data @{ Name = $name; Created = $true }
+                    Write-Log "  [OK] PSO created" -Level SUCCESS
+                    $psoReady = $true
+                }
+            } else {
+                $old = @{}
+                $differs = $false
+                foreach ($key in $settings.Keys) {
+                    $oldValue = $existing.$key
+                    $old[$key] = if ($oldValue -is [TimeSpan]) { $oldValue.ToString() } else { $oldValue }
+                    if ("$oldValue" -ne "$($settings[$key])") { $differs = $true }
+                }
+                if ($differs) {
+                    if ($PSCmdlet.ShouldProcess($name, 'Update PSO')) {
+                        Add-JournalEntry -Type Pso -Description "PSO $name (updated)" -Data @{ Name = $name; Created = $false; Old = $old }
+                        Set-ADFineGrainedPasswordPolicy -Identity $name -Description ([string]$p.Description) @settings -ErrorAction Stop
+                        Write-Log "  [OK] PSO updated" -Level SUCCESS
+                    }
+                } else {
+                    Write-Log "  [=] PSO already up to date" -Level INFO
+                }
+                $psoReady = $true
+            }
+
+            if (-not $psoReady) { continue }   # -WhatIf on a new PSO: no subject assignment possible
+
+            $currentSubjects = @(Get-ADFineGrainedPasswordPolicySubject -Identity $name -ErrorAction SilentlyContinue |
+                                 ForEach-Object { $_.DistinguishedName })
+            foreach ($subjectName in @($p.Subjects)) {
+                $group = Get-ADGroup -Filter "SamAccountName -eq '$subjectName'" -ErrorAction SilentlyContinue
+                if (-not $group) {
+                    Write-Log "  [!] Subject group not found, skipped: $subjectName" -Level WARN
+                    continue
+                }
+                if ($group.DistinguishedName -in $currentSubjects) {
+                    Write-Log "  [=] Already applied to $subjectName" -Level INFO
+                    continue
+                }
+                if ($PSCmdlet.ShouldProcess("$name -> $subjectName", 'Apply PSO to group')) {
+                    Add-ADFineGrainedPasswordPolicySubject -Identity $name -Subjects $group -ErrorAction Stop
+                    Add-JournalEntry -Type PsoSubject -Description "PSO $name -> $subjectName" -Data @{ Pso = $name; Subject = $group.DistinguishedName }
+                    Write-Log "  [OK] Applied to $subjectName" -Level SUCCESS
+                }
+            }
+        } catch {
+            Write-Log "  [X] Failed to configure ${name}: $($_.Exception.Message)" -Level ERROR
+        }
+    }
+
+    Write-Log "`n  [!] PSOs only affect accounts that are members of the listed groups." -Level WARN
+    Write-Log "      Check the effective policy with: Get-ADUserResultantPasswordPolicy -Identity <user>" -Level WARN
+}
+
 Export-ModuleMember -Function `
     Set-ADSIUnauthenticatedBind, Set-DsHeuristicsLDAPSecurity, Set-msDSMachineAccountQuota, `
     Set-KerberosEncryptionTypes, Enable-RecycleBin, Enable-LAPS, Enable-Bitlocker, `
@@ -1034,4 +1224,4 @@ Export-ModuleMember -Function `
     New-Tier0AuthenticationPolicySilo, Add-Tier0SiloMember, `
     Lock-PreWindows2000Group, `
     Get-PrivilegedGroupAudit, Remove-PrivilegedGroupMember, `
-    Set-Tier0AccountSensitive
+    Set-Tier0AccountSensitive, Set-FineGrainedPasswordPolicies

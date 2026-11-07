@@ -27,7 +27,23 @@
     Skip preflight checks. NOT RECOMMENDED. For automation scenarios where checks are external.
 
 .PARAMETER SkipBackup
-    Skip the AD state baseline capture. NOT RECOMMENDED for production runs.
+    Do not open the rollback journal for this run (nothing can be restored afterwards).
+    NOT RECOMMENDED for production runs.
+
+.PARAMETER ReportOnly
+    Evaluate the current hardening level (AD hardening, PSO, GPO import and linking) and write
+    an HTML + CSV + JSON report with a compliance score to .\reports. Read-only: nothing is changed and
+    no rollback journal is created.
+
+.PARAMETER PsoConfigPath
+    Path to PSO_config.json. Default: .\Config\PSO_config.json
+
+.PARAMETER LegacyStateBackup
+    Also capture the former state_backup_*.json baseline (superseded by the rollback journal).
+
+.EXAMPLE
+    .\adhardened.ps1 -ReportOnly
+    Produce the hardening report and score without any modification.
 
 .EXAMPLE
     .\sec_ad.ps1 -DryRun
@@ -48,6 +64,7 @@
 param(
     [Parameter()] [string]$ConfigPath,
     [Parameter()] [string]$GpoConfigPath,
+    [Parameter()] [string]$PsoConfigPath,
 
     [Parameter()]
     [ValidateSet('DEBUG', 'INFO', 'WARN', 'ERROR')]
@@ -55,15 +72,20 @@ param(
 
     [Parameter()] [switch]$DryRun,
     [Parameter()] [switch]$SkipPreflight,
-    [Parameter()] [switch]$SkipBackup
+    [Parameter()] [switch]$SkipBackup,
+    [Parameter()] [switch]$ReportOnly,
+    [Parameter()] [switch]$LegacyStateBackup
 )
 
 
 $scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $ConfigPath)    { $ConfigPath    = Join-Path $scriptPath 'Config\Global_config.json' }
 if (-not $GpoConfigPath) { $GpoConfigPath = Join-Path $scriptPath 'Config\GPO_config.json' }
-$logDir    = Join-Path $scriptPath 'logs'
-$backupDir = Join-Path $scriptPath 'backups'
+if (-not $PsoConfigPath) { $PsoConfigPath = Join-Path $scriptPath 'Config\PSO_config.json' }
+$logDir     = Join-Path $scriptPath 'logs'
+$backupDir  = Join-Path $scriptPath 'backups'
+$journalDir = Join-Path $backupDir 'journal'
+$reportDir  = Join-Path $scriptPath 'reports'
 
 
 function Import-CoreModules {
@@ -184,11 +206,13 @@ function Invoke-Functions {
 # 1. Import modules
 $customModules = @(
     'Logging.psm1',
+    'Journal.psm1',
     'Validation.psm1',
     'StateManagement.psm1',
     'GPO.psm1',
     'ADStructure.psm1',
-    'ADHardening.psm1'
+    'ADHardening.psm1',
+    'Reporting.psm1'
 )
 
 Write-Host "`n=== Loading Modules ===" -ForegroundColor Cyan
@@ -198,7 +222,8 @@ Import-CustomModules -ScriptPath $scriptPath -CustomModules $customModules
 # 2. Init logging
 Initialize-Logging -LogDirectory $logDir -Level $LogLevel | Out-Null
 Write-Log "Sec_AD started" -Level INFO -Color Cyan
-if ($DryRun) { Write-Log "Mode: DRY-RUN (no changes will be applied)" -Level WARN }
+if ($DryRun)     { Write-Log "Mode: DRY-RUN (no changes will be applied)" -Level WARN }
+if ($ReportOnly) { Write-Log "Mode: REPORT-ONLY (read-only evaluation, no changes)" -Level WARN }
 
 # 3. Load configuration
 if (-not (Test-Path $ConfigPath)) {
@@ -240,16 +265,40 @@ if (-not $SkipPreflight) {
 # 5. Functional level (needed by some functions)
 $functionalLevels = Test-FunctionalLevel -TargetDomain $script:Config.TargetDomain
 
-# 6. State backup
-if (-not $SkipBackup) {
+# 5b. Report-only mode: evaluate, export, exit (never modifies anything)
+if ($ReportOnly) {
+    $reportResults = Get-HardeningReport `
+        -Config $script:Config `
+        -GpoConfigPath $GpoConfigPath `
+        -PsoConfigPath $PsoConfigPath `
+        -GpoBackupPath $gpoBackupPath `
+        -FunctionalLevels $functionalLevels
+    Show-HardeningReport -Results $reportResults
+    $files = Export-HardeningReport -Results $reportResults -OutputDirectory $reportDir -TargetDomain $script:Config.TargetDomain
+    Write-Log "`nReport HTML: $($files.Html)" -Level SUCCESS
+    Write-Log "Report CSV : $($files.Csv)" -Level SUCCESS
+    Write-Log "Report JSON: $($files.Json)" -Level SUCCESS
+    Write-Log "Log file   : $(Get-LogFilePath)" -Level INFO
+    exit 0
+}
+
+# 6. Rollback journal (one JSON file per run, replayed in reverse by restore.ps1)
+$journalOpen   = $false
+$activeJournal = $null
+if (-not $SkipBackup -and -not $DryRun) {
+    $activeJournal = Start-RunJournal -JournalDirectory $journalDir `
+        -TargetDomain $script:Config.TargetDomain -RootDN $script:Config.RootDN
+    $journalOpen = $true
+} elseif ($SkipBackup) {
+    Write-Log "[!] Rollback journal skipped: this run cannot be restored" -Level WARN
+}
+if ($LegacyStateBackup -and -not $SkipBackup) {
     New-StateBackup `
         -BackupDirectory $backupDir `
         -RootDN $script:Config.RootDN `
         -TargetDomain $script:Config.TargetDomain `
         -TierNames $script:Config.TierNames `
         -AdmName $script:Config.AdmName | Out-Null
-} else {
-    Write-Log "[!] State backup skipped" -Level WARN
 }
 
 # 7. Function mappings
@@ -265,7 +314,6 @@ $functionMappings = [ordered]@{
     'EnableLAPS'                            = { Enable-LAPS -TargetDomain $script:Config.TargetDomain }
     'EnableBitlocker'                       = { Enable-BitLocker }
     'SetTierOUDelegation'                   = {
-        $aclBackupDir = Join-Path $backupDir 'acl'
         $tierAdminMap = @{
             'Tier0'        = 'Tier0_Admins'
             'Tier1'        = 'Tier1_Admins'
@@ -282,23 +330,27 @@ $functionMappings = [ordered]@{
                 -TierName $tier `
                 -RootDN $script:Config.RootDN `
                 -AdminGroupName $self `
-                -OtherTierAdminGroups $others `
-                -BackupDirectory $aclBackupDir
+                -OtherTierAdminGroups $others
         }
     }
+    'SetFineGrainedPasswordPolicies'        = { Set-FineGrainedPasswordPolicies -PsoConfigPath $PsoConfigPath -FunctionalLevels $functionalLevels }
     'NewTier0AuthenticationPolicySilo'      = {
         $siloConfigPath = Join-Path $scriptPath 'Config\Silo_config.json'
         New-Tier0AuthenticationPolicySilo `
             -FunctionalLevels $functionalLevels `
             -SiloConfigPath $siloConfigPath
     }
-    'LockPreWindows2000Group'               = { Lock-PreWindows2000Group -BackupDirectory $backupDir }
+    'LockPreWindows2000Group'               = { Lock-PreWindows2000Group }
     'GetPrivilegedGroupAudit'               = {
         $reportFile = Join-Path $logDir "privileged_audit_$(Get-Date -Format 'yyyyMMdd_HHmmss').json"
         Get-PrivilegedGroupAudit -ReportPath $reportFile | Out-Null
     }
     'SetTier0AccountSensitive'              = { Set-Tier0AccountSensitive -RootDN $script:Config.RootDN }
     'CompareStateBackup'                    = {
+        # The journal of the current run is already open and empty: look at the previous one
+        $latestJournal = Get-RunJournalFiles -JournalDirectory $journalDir |
+                         Where-Object { $_.FullName -ne $activeJournal } | Select-Object -First 1
+        if ($latestJournal) { Show-RunJournal -JournalFile $latestJournal.FullName; return }
         $latest = Get-LatestStateBackup -BackupDirectory $backupDir
         if (-not $latest) { Write-Log "No state backup found in: $backupDir" -Level WARN; return }
         $diff = Compare-StateBackup -BackupFile $latest.FullName
@@ -311,6 +363,14 @@ $functionMappings = [ordered]@{
         foreach ($n in $diff.Notes) { Write-Log "Note: $n" -Level WARN }
     }
     'RestoreStateBackup'                    = {
+        # The journal of the current run is already open and empty: look at the previous one
+        $latestJournal = Get-RunJournalFiles -JournalDirectory $journalDir |
+                         Where-Object { $_.FullName -ne $activeJournal } | Select-Object -First 1
+        if ($latestJournal) {
+            Write-Log "[!] Restoring from rollback journal: $($latestJournal.Name)" -Level WARN
+            Restore-RunJournal -JournalFile $latestJournal.FullName -Confirm:$false | Out-Null
+            return
+        }
         $latest = Get-LatestStateBackup -BackupDirectory $backupDir
         if (-not $latest) { throw "No state backup found in: $backupDir. Run a deployment first." }
         Write-Log "[!] Restoring AD state from: $($latest.Name)" -Level WARN
@@ -319,7 +379,13 @@ $functionMappings = [ordered]@{
 }
 
 # 8. Execute
-Invoke-Functions -FunctionMappings $functionMappings -DryRun:$DryRun
+try {
+    Invoke-Functions -FunctionMappings $functionMappings -DryRun:$DryRun
+    if ($journalOpen) { Stop-RunJournal -Status Completed }
+} catch {
+    if ($journalOpen) { Stop-RunJournal -Status Failed }
+    throw
+}
 
 Write-Log "`n=== Sec_AD execution finished ===" -Level SUCCESS -Color Cyan
 Write-Log "Log file: $(Get-LogFilePath)" -Level INFO

@@ -19,6 +19,7 @@
         "EnableLAPS": true,
         "EnableBitlocker": true,
         "SetTierOUDelegation": false,
+        "SetFineGrainedPasswordPolicies": false,
         "NewTier0AuthenticationPolicySilo": false,
         "LockPreWindows2000Group": false,
         "GetPrivilegedGroupAudit": false,

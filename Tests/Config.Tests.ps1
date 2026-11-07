@@ -123,4 +123,19 @@ Describe 'GPO backup folders match catalog' {
         $missing = $script:catalog | Where-Object { $_ -notin $foundGpos }
         $missing | Should -BeNullOrEmpty -Because "Every configured GPO must have a backup: missing => $($missing -join ', ')"
     }
+
+    It 'every backup folder is registered in manifest.xml (Import-GPO -BackupId needs it)' {
+        $manifest = Get-Content -Path (Join-Path $script:gpoDir 'manifest.xml') -Raw
+        $ids = [regex]::Matches($manifest, '<ID><!\[CDATA\[(\{[^}]+\})\]\]></ID>') | ForEach-Object { $_.Groups[1].Value.ToUpper() }
+        $unregistered = Get-ChildItem -Path $script:gpoDir -Directory |
+            Where-Object { $_.Name -match '^\{[0-9a-fA-F\-]{36}\}$' -and $_.Name.ToUpper() -notin $ids } |
+            ForEach-Object Name
+        $unregistered | Should -BeNullOrEmpty -Because "not in manifest.xml: $($unregistered -join ', ')"
+    }
+
+    It 'manifest.xml is well-formed XML without declaration' {
+        $raw = Get-Content -Path (Join-Path $script:gpoDir 'manifest.xml') -Raw
+        { [xml]$raw } | Should -Not -Throw
+        $raw | Should -Not -Match '^<\?xml'
+    }
 }

@@ -1,0 +1,21 @@
+# Runtime output of adhardened.ps1 / restore.ps1 (environment specific, may contain
+# domain data and recovery information: never commit)
+/logs/
+/backups/
+/reports/
+
+# Pester
+/Tests/TestResults.xml
+TestResults*.xml
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+~$*

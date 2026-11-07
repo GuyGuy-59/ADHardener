@@ -76,64 +76,73 @@ Note: The exact availability of some GPOs depends on your backup set. Always ver
 | GPO | Level | Key settings (verified or intended) | Source GUID | Verified |
 | --- | --- | --- | --- | --- |
 | Applocker-Enabled | Common | Enforce AppLocker rules (Publisher/Path/Hash) | - | No |
-| [Bitlocker-Enabled](#bitlocker-enabled) | Common | XTS-AES 256 OS/Fixed/Removable; Recovery to AD DS; Require TPM; allow PIN/key | {D40FCAEA-A277-40F6-9B6E-A2BF18E0843D} | Yes |
-| [Bloodhound-Mitigation](#bloodhound-mitigation) | Common | SrvsvcSessionInfo registry modification | {C3CA1767-F3D3-4083-9F9A-0F9DD6C92861} | Yes |
-| [Exploit-Guard-ASR-Enabled](#exploit-guard-asr-enabled) | Common | Windows Defender ASR rules enabled (19 rules including LSASS protection, Office macro blocking, ransomware protection) | {7E6A7DF9-2F13-4BC2-9C56-425B5406B9EF} | Yes |
+| [Bitlocker-Enabled](#bitlocker-enabled) | Common | XTS-AES 256 OS/Fixed/Removable; Recovery to AD DS; Require TPM; allow PIN/key | {5C1EB31B-82CB-431D-8C07-10F6082753E0} | Yes |
+| [Bloodhound-Mitigation](#bloodhound-mitigation) | Common | SrvsvcSessionInfo registry modification | {EA4C09BE-91A2-4195-A274-139F8E6AC10E} | Yes |
+| [Exploit-Guard-ASR-Enabled](#exploit-guard-asr-enabled) | Common | Windows Defender ASR rules enabled in Audit mode (value 2) (19 rules including LSASS protection, Office macro blocking, ransomware protection) | {7E6A7DF9-2F13-4BC2-9C56-425B5406B9EF} | Yes |
 | [Exploit-Guard-CFA-Enabled](#exploit-guard-cfa-enabled) | Common | Configure Controlled Folder Access to protect folders from untrusted applications | {F12C5009-1739-46B7-A426-CC52CD10041F} | Yes |
 | [Exploit-Guard-NP-Enabled](#exploit-guard-np-enabled) | Common | Enable Network Protection to prevent access to dangerous domains | {87C0251F-0105-423B-9D42-B9042862F1F3} | Yes |
-| [IPv6-Disabled](#ipv6-disabled) | Common | HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters\\DisabledComponents = 0xFF | {18DDEDE5-8AC7-4F68-BD53-0F4FE82CFF6A} | Yes |
-| [Kerberos-AES-Enabled](#kerberos-aes-enabled) | Common | Allow AES128/AES256; disable RC4/DES | {5C8C70D6-ADC5-4861-9D33-78BA8925C546} | Yes |
-| [Kerberos-Armoring-Enabled](#kerberos-armoring-enabled) | Common | KDC armoring (Always provide claims); Client support enabled | {D8213592-A793-467D-BD6F-FB3BAF1212D6} | Yes |
-| [LAPS-Enabled](#laps-enabled) | Common | Backup to AD; encryption enabled; history 1; len 14; age 1d | {9D44F24F-35F8-4BB2-B711-64F5FE3933E8} | Yes |
-| [LDAP-CBT-Enabled](#ldap-cbt-enabled) | Common | DC LDAP CBT requirement = Always | {02DE5552-EAA5-40A6-A2E1-A659C1DE57D0} | Yes |
-| [LDAP-Client-Signing-Required](#ldap-client-signing-required) | Common | Require LDAP signing (client) | {56653B16-88E2-4947-BF25-B9E90838CBCB} | Yes |
-| [LDAP-Server-Signing-Required](#ldap-server-signing-required) | Common | Require LDAP signing (DC) | {5DC701B5-4706-4B72-A3EF-959EC7A9CCB2} | Yes |
-| [LLMNR-Disabled](#llmnr-disabled) | Common | Turn off multicast name resolution: Enabled | {D386A8E5-6739-400B-9D96-027DDFCD0252} | Yes |
+| [Firewall-Hardened](#firewall-hardened) | Common | Windows Firewall enabled on Domain/Private/Public; DefaultInboundAction = Block; drop + success logging (16 MB per profile) | {B2121C00-8F55-42B4-A0C5-2835CB47F8F6} | Yes |
+| [IPv6-Disabled](#ipv6-disabled) | Common | HKLM\\SYSTEM\\CurrentControlSet\\Services\\Tcpip6\\Parameters\\DisabledComponents = 0xFF | {243BCC24-CE93-4327-9F28-C7D19DB8832D} | Yes |
+| [Kerberos-AES-Enabled](#kerberos-aes-enabled) | Common | Allow AES128/AES256; disable RC4/DES | {AF312920-BF66-474A-9EC6-A6F2C12AA8F1} | Yes |
+| [Kerberos-Armoring-Enabled](#kerberos-armoring-enabled) | Common | KDC armoring (Always provide claims); Client support enabled | {27BE0AF7-C4AC-403B-A5C0-2BF1322B9087} | Yes |
+| [LAPS-Enabled](#laps-enabled) | Common | Backup to AD; encryption enabled; history 1; len 14; age 1d | {C3805232-526C-4DE1-A6B6-1F4365418824} | Yes |
+| [LDAP-CBT-Enabled](#ldap-cbt-enabled) | Common | DC LDAP CBT requirement = Always | {1FD104D1-1AA0-43A4-9F94-23C8D6D7CC21} | Yes |
+| [LDAP-Client-Signing-Required](#ldap-client-signing-required) | Common | Require LDAP signing (client) | {2D554DDE-5D64-4CD0-94E7-46DDE33F9C8B} | Yes |
+| [LDAP-Server-Signing-Required](#ldap-server-signing-required) | Common | Require LDAP signing (DC) | {1ADC4181-9658-4D20-A45C-598AE27DE276} | Yes |
+| [LLMNR-Disabled](#llmnr-disabled) | Common | Turn off multicast name resolution: Enabled | {27C2E8D4-8C77-45DE-9598-02152B1D8438} | Yes |
 | [LSA-Hardened](#lsa-hardened) | Common | HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa\\RunAsPPL = 2 | {4D282735-FCEB-400F-9D9B-ED26F59E2DF9} | Yes |
 | [LMHASH-Disabled](#lmhash-disabled) | Level2016 | HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa\\NoLMHash = 1 | {5DA34663-85C7-4EBA-9AFE-63B6CE5A9D5B} | Yes |
-| [Logs-Advanced-Server-Enabled](#logs-advanced-server-enabled) | Common | Advanced Audit: Logon=Success/Failure, ProcCreation=Success, Kerberos=Success, File Share=Success/Failure, more | {84C66152-0AA5-42EF-8CA1-7D4476BEB88E} | Yes |
-| [Logs-Advanced-Workstation-Enabled](#logs-advanced-workstation-enabled) | Common | Advanced Audit (workstations) incl. Logon, ProcCreation, File Share, etc. | {950CB7EF-E5E4-4F22-834E-BB845BB33652} | Yes |
-| [mDNS-Disabled](#mdns-disabled) | Common | HKLM\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\EnableMDNS = 0 | {34EFE6F0-1266-4EF9-B52C-1B3D4FF0713B} | Yes |
-| [MSCache-Disabled](#mscache-disabled) | Common | CachedLogonsCount = 1 | {33CE3E1D-8AFD-4A96-A89C-CF9776A8C67F} | Yes |
+| [Logs-Advanced-Server-Enabled](#logs-advanced-server-enabled) | Common | Advanced Audit: Logon=Success/Failure, ProcCreation=Success, Kerberos=Success, File Share=Success/Failure, more | {8434425C-A2C8-426A-B5B2-6F55CDA3DD16} | Yes |
+| [Logs-Advanced-Workstation-Enabled](#logs-advanced-workstation-enabled) | Common | Advanced Audit (workstations) incl. Logon, ProcCreation, File Share, etc. | {ECF46CA2-9DCA-47F5-A364-BD107FDEAE62} | Yes |
+| [mDNS-Disabled](#mdns-disabled) | Common | HKLM\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\EnableMDNS = 0 | {D9B4E9C8-6541-4B40-A88B-5CC3CCE8FF7B} | Yes |
+| [MSCache-Disabled](#mscache-disabled) | Common | CachedLogonsCount = 1 | {C6DCD876-3731-40AC-8224-6CFD8D745BDF} | Yes |
 | [MSCache-NLIterationCount-Hardened](#mscache-nliterationcount-hardened) | Common | HKLM\\SECURITY\\Cache\\NL$IterationCount = 0x7A2 (1954) | {5E37A7CB-CBE5-40B6-A11E-9572BEAE0050} | Yes |
 | [NBT-NS-Disabled](#nbt-ns-disabled) | Level2016 | PowerShell script: NBT-NS-Disabled.ps1 (Startup) | {6CDB3BDF-A907-4DF8-8678-AA3D962761C5} | Yes |
-| [NBT-NS-New-Disabled](#nbt-ns-new-disabled) | Level2025 | Configure NetBIOS settings: Disable NetBIOS name resolution | {D04765E7-21F8-4262-BF17-BA6915EA3E3C} | Yes |
-| [NTLM-Audit-Enabled](#ntlm-audit-enabled) | Common | AuditReceivingNTLMTraffic=Enable all; Netlogon AuditNTLMInDomain=Enable all | {C4614F9E-8588-4538-9D4B-79A9D7B78FC5} | Yes |
-| [NTLM-Disabled](#ntlm-disabled) | Common | Network security: Restrict NTLM: NTLM authentication in this domain = Deny all | {204AB18D-6CED-47A5-BDB0-F1EAA927E589} | Yes |
-| [NTLM1-LM-Disabled](#ntlm1-lm-disabled) | Common | LmCompatibilityLevel=5; allownullsessionfallback=0; UseMachineId=1 | {F7B2DAF3-419E-434A-B2EA-878A9A4CF50D} | Yes |
-| [NTLMv2-128bits-Required](#ntlmv2-128bits-required) | Common | NTLMMinClientSec/NTLMMinServerSec: Require NTLMv2 session security + 128-bit | {8D43D93F-9881-4B2D-860D-0E55F8BADE11} | Yes |
-| [Powershell-Hardened](#powershell-hardened) | Common | Module Logging=*; Script Block Logging=Enabled; Transcription=Enabled; Execution Policy=RemoteSigned | {5B6C5DC9-5736-48DD-BA2D-54421ED148D0} | Yes |
-| [Proxy-Change-Disabled](#proxy-change-disabled) | Common | Prevent changing proxy settings: Enabled | {11D658FD-B6A9-40EB-A4DF-DAD4AEFEFE49} | Yes |
-| [RDP-hijacking-Mitigation](#rdp-hijacking-mitigation) | Common | Do not allow passwords to be saved; End session when time limits reached; Set time limit for disconnected sessions: 1 minute | {59AC93A5-1EA4-4DB7-8205-1904BB465712} | Yes |
+| [NBT-NS-New-Disabled](#nbt-ns-new-disabled) | Level2025 | Configure NetBIOS settings: Disable NetBIOS name resolution | {3482170C-BA86-4456-8922-6D49DB265150} | Yes |
+| [NTLM-Audit-Enabled](#ntlm-audit-enabled) | Common | AuditReceivingNTLMTraffic=Enable all; Netlogon AuditNTLMInDomain=Enable all | {333559F0-8CEF-41B0-946E-37E280BEEFA6} | Yes |
+| [NTLM-Disabled](#ntlm-disabled) | Common | Network security: Restrict NTLM: NTLM authentication in this domain = Deny all | {C00B08D4-F35B-45C7-965C-C89435E2B3FD} | Yes |
+| [NTLM1-LM-Disabled](#ntlm1-lm-disabled) | Common | LmCompatibilityLevel=5; allownullsessionfallback=0; UseMachineId=1 | {8D0A9C00-CEA6-4DA3-A835-743251BA07D3} | Yes |
+| [NTLMv2-128bits-Required](#ntlmv2-128bits-required) | Common | NTLMMinClientSec/NTLMMinServerSec: Require NTLMv2 session security + 128-bit | {046E6EC2-1D63-4467-A766-DC936BBC3AF4} | Yes |
+| [Powershell-Hardened](#powershell-hardened) | Common | Module Logging=*; Script Block Logging=Enabled; Transcription=Enabled; Execution Policy=RemoteSigned | {A9D47C2A-5320-4CD7-9690-25FFF3533AE2} | Yes |
+| [PowerShellv2-Disabled](#powershellv2-disabled) | Common | Startup script removes the PowerShell 2.0 engine (Windows feature) | {93673E5D-30E0-4392-854E-E5BB10F0883A} | Yes |
+| [Proxy-Change-Disabled](#proxy-change-disabled) | Common | Prevent changing proxy settings: Enabled | {BE5A6656-225E-454E-BBC8-285DB1F831DA} | Yes |
+| [RDP-hijacking-Mitigation](#rdp-hijacking-mitigation) | Common | Do not allow passwords to be saved; End session when time limits reached; Set time limit for disconnected sessions: 1 minute | {0CDA2675-9876-4C68-B944-8B523EB4AE5F} | Yes |
 | [RDP-Secure-Connection-Enabled](#rdp-secure-connection-enabled) | Common | Require SSL (TLS 1.0) security layer; Require NLA; High encryption level | {CD6C9404-6999-4A43-BD2B-7CEE359FB50F} | Yes |
 | [Remote-Credential-Guard-Enabled](#remote-credential-guard-enabled) | Common | Require Remote Credential Guard to prevent credential delegation during RDP connections | {98713E77-38FA-43CD-8D6A-E2B6FDA9B788} | Yes |
-| [RPC-Hardened](#rpc-hardened) | Common | Enable RPC Endpoint Mapper Client Authentication; Restrict Unauthenticated RPC clients: Authenticated | {D9660FAF-7936-4E4C-BC7B-0FFB26E9A017} | Yes |
-| [ScreenLock-enabled](#screenlock-enabled) | Common | Enable screensaver; password protect; timeout=600s | {B83BEEC6-9AFD-46DC-B5DF-E6DD0963EDAD} | Yes |
-| [Secure-NetLogon](#secure-netlogon) | Common | RequireSignOrSeal, SealSecureChannel, RequireStrongKey = 1; DisablePasswordChange = 0; MaximumPasswordAge = 30d | {D4F07B79-4AA2-4DA2-96DE-FEE6612899C7} | Yes |
-| [SMB-Client-Encrypt-Required](#smb-client-encrypt-required) | Level2025 | Require Encryption: Enabled | {4985D82E-1B74-46EF-AD73-33CE0AC84CDC} | Yes |
-| [SMB-Client-Signing-Enabled](#smb-client-signing-enabled) | Common | Client signing if/always: Enabled; no plaintext | {4C681DD9-AD37-46A3-AFCD-F8E529E5D11B} | Yes |
-| [SMB-NTLM-Disabled](#smb-ntlm-disabled-windows-2025) | Level2025 | SMB client blocks NTLM | {EB9FE2D4-776F-45DB-92EA-FE19D42F03E7} | Yes |
-| [SMB-Server-Signing-Enabled](#smb-server-signing-enabled) | Common | Server signing if/always: Enabled | {26EB3D1F-4C89-40D1-A11E-2A4C8A31A669} | Yes |
-| [SMBv1-Disabled](#smbv1-disabled) | Common | HKLM\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters\SMB1 = 0 | {AE8DF7F8-5623-4C10-B6A7-C0E9BE598BB7} | Yes |
-| [SMBv3.1.1-Enforced](#smbv311-enforced) | Common | LanmanServer MinClientDialect = 0x0311; LanmanWorkstation MinClientDialect = 0x0311 | {0CCD8804-42C1-41A4-80CC-2887480AB6CE} | Yes |
-| [SSDP-Disabled](#ssdp-disabled) | Common | SSDPSRV service: Disabled | {0FBBB029-356A-46F8-8158-5CB1C668EDAC} | Yes |
-| [TLS-Hardened](#tls-hardened) | Common | Disable SSL 3.0 and TLS 1.0/1.1 (Client/Server); set DisabledByDefault=1 | {C3114819-BA13-42DF-9123-049D7AFB83E7} | Yes |
-| [UAC-Hardened](#uac-hardened) | Common | EnableLUA=1; PromptOnSecureDesktop=1; FilterAdministratorToken=1; ConsentPromptBehaviorAdmin=2; ConsentPromptBehaviorUser=1; EnableVirtualization=1 | {950CB7EF-E5E4-4F22-834E-BB845BB33652} | Yes |
-| [UNC-Paths-Hardened](#unc-paths-hardened) | Common | \\*\\SYSVOL and \\*\\NETLOGON: RequireMutualAuthentication=1, RequireIntegrity=1 | {88D3A452-EE6A-43FD-9318-E35139F67AF9} | Yes |
+| [RPC-Hardened](#rpc-hardened) | Common | Enable RPC Endpoint Mapper Client Authentication; Restrict Unauthenticated RPC clients: Authenticated | {F1573019-FCD8-4213-8406-B21425F23A9B} | Yes |
+| [ScreenLock-enabled](#screenlock-enabled) | Common | User Configuration: enable screensaver; password protect; timeout=600s | {CCC0E538-6CE7-4CDC-9A55-394AD4F58D51} | Yes |
+| [Secure-NetLogon](#secure-netlogon) | Common | RequireSignOrSeal, SignSecureChannel, SealSecureChannel, RequireStrongKey = 1; DisablePasswordChange = 0; MaximumPasswordAge = 30d | {C3CC4771-DBB8-4600-8E01-6618DE7ADA55} | Yes |
+| [SMB-Client-Encrypt-Required](#smb-client-encrypt-required) | Level2025 | Require Encryption: Enabled | {12FF1965-C4DF-4193-81E9-440189642890} | Yes |
+| [SMB-Client-Signing-Enabled](#smb-client-signing-enabled) | Common | Client signing if/always: Enabled; no plaintext | {BA5F3326-868A-432F-B338-E3A4A75605B9} | Yes |
+| [SMB-NTLM-Disabled](#smb-ntlm-disabled-windows-2025) | Level2025 | SMB client blocks NTLM | {AB2F700C-A003-4B56-8D63-72426540E19A} | Yes |
+| [SMB-Server-Signing-Enabled](#smb-server-signing-enabled) | Common | Server signing if/always: Enabled | {5AC6D5C8-5249-4426-AA7A-577D3D528ED9} | Yes |
+| [SMBv1-Disabled](#smbv1-disabled) | Common | HKLM\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters\SMB1 = 0 | {F46D16FB-8E4F-4F59-94BA-36235DB3C1DC} | Yes |
+| [SMBv3.1.1-Enforced](#smbv311-enforced) | Common | Mandate the minimum version of SMB: LanmanServer and LanmanWorkstation MinSmb2Dialect = 0x0311 | {0CCD8804-42C1-41A4-80CC-2887480AB6CE} | Yes |
+| [SSDP-Disabled](#ssdp-disabled) | Common | SSDPSRV service: Disabled | {EDC5829D-249C-42D7-BCF7-14B6B8C4FA84} | Yes |
+| [TLS-Hardened](#tls-hardened) | Common | Disable SSL 3.0 and TLS 1.0/1.1 (Client/Server): Enabled=0, DisabledByDefault=1; enable TLS 1.2/1.3: Enabled=1, DisabledByDefault=0 | {C27D4D62-2CC0-4791-A902-2920025E9472} | Yes |
+| [UAC-Hardened](#uac-hardened) | Common | EnableLUA=1; PromptOnSecureDesktop=1; FilterAdministratorToken=1; ConsentPromptBehaviorAdmin=2; ConsentPromptBehaviorUser=1; EnableVirtualization=1 | {2DF4B0F0-D78F-4E19-9969-BE1C6239F75E} | Yes |
+| [UNC-Paths-Hardened](#unc-paths-hardened) | Common | \\*\\SYSVOL and \\*\\NETLOGON: RequireMutualAuthentication=1, RequireIntegrity=1 | {C8ED646D-19BF-4E77-BB2A-FD25884721FC} | Yes |
 | [VBS-Enabled](#vbs-enabled) | Common | Virtualization Based Security: Code Integrity + Credential Guard enabled with UEFI lock; Secure Launch; Kernel Stack Protection | {C2945E69-15BF-47C7-9277-85E9C0ADC26B} | Yes |
-| [Wdigest-Disabled](#wdigest-disabled) | Common | HKLM\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\WDigest\\UseLogonCredential = 0 | {58F19C43-E9A3-4FB4-83B3-60775BD54BE2} | Yes |
-| [WebProxyAutoDiscovery-Disabled](#webproxyautodiscovery-disabled) | Common | WinHttpAutoProxySvc Start=4; AutoDetect=0 | {11BBFDC3-5A7E-495B-A275-98F9D6CA666B} | Yes |
-| [WPAD-Computer-Disabled](#wpad-computer-disabled) | Common | HKLM\\...\\WinHttp\\DisableWpad = 1 | {C82210F2-407C-49FB-A2AF-F394EFEE5AC2} | Yes |
-| [WPAD-User-Disabled](#wpad-user-disabled) | Common | HKCU\\...\\Internet Settings\\AutoDetect = 0 | {E0A0C5FB-86D3-4B59-9DEF-26C91030E19C} | Yes |
-| [WScript-Disabled](#wscript-disabled) | Common | HKLM\\SOFTWARE\\Microsoft\\Windows Script Host\\Settings\\Enabled = 0 | {0D2A290C-6F47-4F94-B144-63E091DD8A2A} | Yes |
+| [Wdigest-Disabled](#wdigest-disabled) | Common | HKLM\\SYSTEM\\CurrentControlSet\\Control\\SecurityProviders\\WDigest\\UseLogonCredential = 0 | {A8023783-6CAC-4AFD-9DE6-F7B0822CF5B2} | Yes |
+| [WebProxyAutoDiscovery-Disabled](#webproxyautodiscovery-disabled) | Common | WinHttpAutoProxySvc Start=4; AutoDetect=0 | {9E65350C-03CA-419D-ABC6-0623D2AAF955} | Yes |
+| [WinRM-Client-Hardened](#winrm-client-hardened) | Common | WinRM client: no Basic/Digest/CredSSP/unencrypted; Kerberos allowed | {43390522-A266-418B-A5C4-194A192EFD97} | Yes |
+| [WinRM-Server-Hardened](#winrm-server-hardened) | Common | WinRM service: CBT Strict; no RunAs credentials; no Basic/CredSSP/unencrypted; HTTPS compat listener off; listener IP filter | {7E3315EA-A4C8-49DD-92D9-851D1696C65B} | Yes |
+| [WPAD-Computer-Disabled](#wpad-computer-disabled) | Common | HKLM\\...\\WinHttp\\DisableWpad = 1 | {FCDCED40-5F7D-449C-84E4-9E3C13F0E38C} | Yes |
+| [WPAD-User-Disabled](#wpad-user-disabled) | Common | HKCU\\...\\Internet Settings\\AutoDetect = 0 | {A4284545-9F52-4842-9B00-47024002755F} | Yes |
+| [WScript-Disabled](#wscript-disabled) | Common | HKLM\\SOFTWARE\\Microsoft\\Windows Script Host\\Settings\\Enabled = 0 | {B93993A7-544C-4042-B47C-B150C215207A} | Yes |
+
+> **Source GUID** is the backup folder in `GPO\` that `ImportSecurityHardeningGPOs` imports. When a GPO has several backups, only the **most recent** one is imported (older backups of the same GPO are ignored). Settings below were read from those backups (`registry.pol`, Group Policy Preferences `Registry.xml`, `GptTmpl.inf`, `audit.csv`, scripts) and checked against `gpreport.xml`.
+>
+> Two backups are present but are **not** in the catalog and are never imported: `Default Domain Policy` (password policy: minimum length 7, history 24, maximum age 42 days, complexity enabled, no lockout; Kerberos ticket lifetimes) and `Default Domain Controllers Policy` (LDAP server signing = Negotiate (1), NetLogon sign or seal, SMB signing, default user rights). Password and lockout hardening is handled by the fine-grained password policies (`Config/PSO_config.json`), see the README.
 
 ### GPO details (alphabetical)
 
 - Applocker-Enabled: Enables AppLocker rules (publisher/path/hash) to restrict unapproved code execution.
 - Bitlocker-Enabled: Enforces BitLocker drive encryption, recovery key escrow to AD, TPM usage, and strong algorithms.
-- Exploit-Guard-ASR-Enabled: Enables Windows Defender Attack Surface Reduction (ASR) rules to block common attack techniques including credential theft, malicious scripts, Office macros, and ransomware.
+- Exploit-Guard-ASR-Enabled: Enables Windows Defender Attack Surface Reduction (ASR) rules in Audit mode to log common attack techniques including credential theft, malicious scripts, Office macros, and ransomware.
 - Exploit-Guard-CFA-Enabled: Enables Windows Defender Controlled Folder Access to protect folders from untrusted applications and prevent ransomware attacks.
 - Exploit-Guard-NP-Enabled: Enables Windows Defender Network Protection to prevent access to dangerous domains that may host phishing scams, exploit-hosting sites, and other malicious content.
+- Firewall-Hardened: Enables Windows Firewall on all profiles with inbound connections blocked by default and drop/success logging.
 - Bloodhound-Mitigation: Reduces BloodHound attack surface by modifying SrvsvcSessionInfo registry ACL to restrict session enumeration.
 - IPv6-Disabled: Disables IPv6 where it is not required, reducing protocol surface.
 - Kerberos-AES-Enabled: Prefers/forces AES for Kerberos; disables weak ciphers where possible.
@@ -156,6 +165,7 @@ Note: The exact availability of some GPOs depends on your backup set. Always ver
 - NTLM1-LM-Disabled: Disables LM and NTLMv1 authentication.
 - NTLMv2-128bits-Required: Requires NTLMv2 and 128-bit encryption when NTLM is still in use.
 - Powershell-Hardened: Enables PowerShell module logging (*), script block logging, transcription, and sets execution policy to RemoteSigned.
+- PowerShellv2-Disabled: Removes the PowerShell 2.0 engine through a computer startup script (no registry policy exists).
 - Proxy-Change-Disabled: Prevents user-level proxy changes (mitigates WPAD/proxy hijack scenarios).
 
 - RDP-hijacking-Mitigation: Mitigates RDP session hijacking by disabling password saving, enforcing session timeouts, and limiting disconnected sessions.
@@ -177,6 +187,8 @@ Note: The exact availability of some GPOs depends on your backup set. Always ver
 - VBS-Enabled: Enables Virtualization Based Security with Code Integrity protection, Credential Guard, Secure Launch, and Kernel Stack Protection to provide hardware-enforced security.
 - Wdigest-Disabled: Disables WDigest to avoid reversible credential storage in memory.
 - WebProxyAutoDiscovery-Disabled: Disables OS-level auto-proxy discovery.
+- WinRM-Client-Hardened: Hardens the WinRM client (Basic, Digest, CredSSP, unencrypted traffic).
+- WinRM-Server-Hardened: Hardens the WinRM service (channel binding, RunAs, Basic, CredSSP, unencrypted traffic, listener filter). Link to server OUs only.
 - WPAD-Computer-Disabled: Disables WPAD in the computer context.
 - WPAD-User-Disabled: Disables WPAD in the user context.
 - WScript-Disabled: Disables Windows Script Host when not required.
@@ -235,35 +247,35 @@ Always validate in pre-production, monitor NTLM audit before enforcement, and te
 <a id="exploit-guard-asr-enabled"></a>
 ### Exploit-Guard-ASR-Enabled
 
-- Windows Defender Attack Surface Reduction (ASR) Rules: All 19 rules enabled (Block mode)
+- Windows Defender Attack Surface Reduction (ASR) Rules: All 19 rules enabled in Audit mode (value 2)
   - **Policy**: Enable Windows Defender Attack Surface Reduction (ASR) rules
-  - **Description**: Configures Windows Defender ASR rules to block common attack techniques and malware behaviors
+  - **Description**: Configures Windows Defender ASR rules to audit (and, once switched to Block, block) common attack techniques and malware behaviors
   - **Registry Path**: HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\Windows Defender Exploit Guard\ASR\Rules
   - **Settings**:
-    - 56A863A9-875E-4185-98A7-B882C64B5CE5 = 1: Block abuse of exploited vulnerable signed drivers
-    - 7674BA52-37EB-4A4F-A9A1-F0F9A1619A2C = 1: Block Adobe Reader from creating child processes
-    - D4F940AB-401B-4EFC-AADC-AD5F3C50688A = 1: Block all Office applications from creating child processes
-    - 9E6C4E1F-7D60-472F-BA1A-A39EF669E4B2 = 1: Block credential stealing from the Windows local security authority subsystem (lsass.exe)
-    - BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550 = 1: Block executable content from email client and webmail
-    - 01443614-CD74-433A-B99E-2ECDC07BFC25 = 1: Block executable files from running unless they meet a prevalence, age, or trusted list criterion
-    - 5BEB7EFE-FD9A-4556-801D-275E5FFC04CC = 1: Block execution of potentially obfuscated scripts
-    - D3E037E1-3EB8-44C8-A917-57927947596D = 1: Block JavaScript or VBScript from launching downloaded executable content
-    - 3B576869-A4EC-4529-8536-B80A7769E899 = 1: Block Office applications from creating executable content
-    - 75668C1F-73B5-4CF0-BB93-3ECF5CB7CC84 = 1: Block Office applications from injecting code into other processes
-    - 26190899-1602-49E8-8B27-EB1D0A1CE869 = 1: Block Office communication application from creating child processes
-    - E6DB77E5-3DF2-4CF1-B95A-636979351E5B = 1: Block persistence through WMI event subscription
-    - D1E49AAC-8F56-4280-B9BA-993A6D77406C = 1: Block process creations originating from PSExec and WMI commands
-    - B2B3F03D-6A65-4F7B-A9C7-1C7EF74A9BA4 = 1: Block untrusted and unsigned processes that run from USB
-    - 92E97FA1-2EDF-4476-BDD6-9DD0B4DDDC7B = 1: Block Win32 API calls from Office macros
-    - C1DB55AB-C21A-4637-BB3F-A12568109D35 = 1: Use advanced protection against ransomware
-    - A8F5898E-1DC8-49A9-9878-85004B8A61E6 = 1: Block Webshell creation for Servers
-    - 33DDEDF1-C6E0-47CB-833E-DE6133960387 = 1: Block rebooting machine in Safe Mode
-    - C0033C00-D16D-4114-A5A0-DC9B3A7D2CEB = 1: Block use of copied or impersonated system tools
-  - **Impact**: Blocks common attack techniques including credential theft, malicious Office macros, script execution, ransomware, and lateral movement techniques
+    - 56A863A9-875E-4185-98A7-B882C64B5CE5 = 2: Block abuse of exploited vulnerable signed drivers
+    - 7674BA52-37EB-4A4F-A9A1-F0F9A1619A2C = 2: Block Adobe Reader from creating child processes
+    - D4F940AB-401B-4EFC-AADC-AD5F3C50688A = 2: Block all Office applications from creating child processes
+    - 9E6C4E1F-7D60-472F-BA1A-A39EF669E4B2 = 2: Block credential stealing from the Windows local security authority subsystem (lsass.exe)
+    - BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550 = 2: Block executable content from email client and webmail
+    - 01443614-CD74-433A-B99E-2ECDC07BFC25 = 2: Block executable files from running unless they meet a prevalence, age, or trusted list criterion
+    - 5BEB7EFE-FD9A-4556-801D-275E5FFC04CC = 2: Block execution of potentially obfuscated scripts
+    - D3E037E1-3EB8-44C8-A917-57927947596D = 2: Block JavaScript or VBScript from launching downloaded executable content
+    - 3B576869-A4EC-4529-8536-B80A7769E899 = 2: Block Office applications from creating executable content
+    - 75668C1F-73B5-4CF0-BB93-3ECF5CB7CC84 = 2: Block Office applications from injecting code into other processes
+    - 26190899-1602-49E8-8B27-EB1D0A1CE869 = 2: Block Office communication application from creating child processes
+    - E6DB77E5-3DF2-4CF1-B95A-636979351E5B = 2: Block persistence through WMI event subscription
+    - D1E49AAC-8F56-4280-B9BA-993A6D77406C = 2: Block process creations originating from PSExec and WMI commands
+    - B2B3F03D-6A65-4F7B-A9C7-1C7EF74A9BA4 = 2: Block untrusted and unsigned processes that run from USB
+    - 92E97FA1-2EDF-4476-BDD6-9DD0B4DDDC7B = 2: Block Win32 API calls from Office macros
+    - C1DB55AB-C21A-4637-BB3F-A12568109D35 = 2: Use advanced protection against ransomware
+    - A8F5898E-1DC8-49A9-9878-85004B8A61E6 = 2: Block Webshell creation for Servers
+    - 33DDEDF1-C6E0-47CB-833E-DE6133960387 = 2: Block rebooting machine in Safe Mode
+    - C0033C00-D16D-4114-A5A0-DC9B3A7D2CEB = 2: Block use of copied or impersonated system tools
+  - **Impact**: In Audit mode, logs the use of common attack techniques (it blocks them once switched to Block) including credential theft, malicious Office macros, script execution, ransomware, and lateral movement techniques
   - **Security Benefit**: Provides defense-in-depth protection against modern attack techniques and malware behaviors, significantly reducing attack surface
   - **Category**: Security/Attack Surface Reduction
   - **Compatibility**: Windows 10 1709+ and Windows Server 2019+ (requires Windows Defender Antivirus)
-  - **Note**: Rule values: 0 = Disabled, 1 = Block, 2 = Audit (Warn). This GPO sets all rules to 1 (Block mode)
+  - **Note**: Rule values: 0 = Disabled, 1 = Block, 2 = Audit, 6 = Warn. This GPO sets all 19 rules to 2 (**Audit mode**: events are logged, nothing is blocked). Review Defender events 1121/1122 and set the rules to 1 (Block) once the exclusions are tuned. `registry.pol` holds the 19 rule values; GPMC reports the policy as Enabled
 
 <a id="exploit-guard-cfa-enabled"></a>
 ### Exploit-Guard-CFA-Enabled
@@ -290,6 +302,22 @@ Always validate in pre-production, monitor NTLM audit before enforcement, and te
   - **Category**: Security/Network Protection
   - **Compatibility**: Windows 10 1709+ and Windows Server 2019+ (requires Windows Defender Antivirus)
   - **Note**: Can be configured in Block mode or Audit mode. Block mode prevents access, while Audit mode logs attempts without blocking.
+
+<a id="firewall-hardened"></a>
+### Firewall-Hardened
+
+- HKLM\SOFTWARE\Policies\Microsoft\WindowsFirewall\{DomainProfile,PrivateProfile,PublicProfile}\EnableFirewall = 1
+- HKLM\SOFTWARE\Policies\Microsoft\WindowsFirewall\{DomainProfile,PrivateProfile,PublicProfile}\DefaultInboundAction = 1 (Block)
+- HKLM\SOFTWARE\Policies\Microsoft\WindowsFirewall\{DomainProfile,PrivateProfile,PublicProfile}\DefaultOutboundAction = 0 (Allow)
+- HKLM\SOFTWARE\Policies\Microsoft\WindowsFirewall\{DomainProfile,PrivateProfile,PublicProfile}\Logging: LogDroppedPackets = 1, LogSuccessfulConnections = 1, LogFileSize = 16384, LogFilePath = %systemroot%\system32\logfiles\firewall\{domain,private,public}_firewall.log
+  - **Policy**: Windows Defender Firewall enabled on the three profiles, inbound blocked by default
+  - **Description**: Turns the firewall on for the Domain, Private and Public profiles, blocks inbound connections that no enabled rule allows, allows outbound, and logs dropped packets and successful connections (16 MB per profile)
+  - **Registry Setting**: See the values above. `AllowLocalPolicyMerge` is not set, so local rules still merge
+  - **Impact**: Inbound traffic not allowed by an enabled rule is blocked. Rules created by server roles (AD DS, DNS, file, RDP) keep working
+  - **Security Benefit**: Host filtering against lateral movement; drop and success logs for detection
+  - **Category**: Network/Firewall
+  - **Compatibility**: Pilot on a test OU first and check monitoring/backup agents and custom inbound flows. Logging successful connections is verbose
+  - **Supported**: Windows Server 2008+ and Windows 7+
 
 <a id="ipv6-disabled"></a>
 ### IPv6-Disabled
@@ -427,7 +455,7 @@ Always validate in pre-production, monitor NTLM audit before enforcement, and te
   - **Security Benefit**: Protects against Mimikatz and similar credential theft tools by preventing access to LSA process memory
   - **Category**: Security/Credential Protection
   - **Compatibility**: Windows Server 2012 R2+ and Windows 8.1+
-  - **Note**: Value 2 enables LSA Protection. Requires compatible hardware and may impact some security tools.
+  - **Note**: RunAsPPL = 1 enables LSA Protection with a UEFI lock, 2 enables it without UEFI lock (Windows 11 22H2+ / Windows Server 2025+, can be reverted by GPO). Third-party LSA plug-ins must be signed; may impact some security tools.
 
 <a id="lmhash-disabled"></a>
 ### LMHASH-Disabled
@@ -537,7 +565,7 @@ Always validate in pre-production, monitor NTLM audit before enforcement, and te
   - **Security Benefit**: Makes offline attacks on cached credentials computationally expensive, protecting against credential theft
   - **Category**: Security/Password Protection
   - **Compatibility**: Windows Server 2008+ and Windows 7+
-  - **Note**: Higher iteration counts increase security but may slightly impact logon performance. Default is typically 10240 (0x2800) or lower.
+  - **Note**: Values up to 10240 are multiples of 1024 (1954 means 1954 x 1024 = 2,000,896 iterations); above 10240 the value is the literal iteration count. The default is 10240 iterations, so this setting multiplies the cost of offline attacks on cached credentials by about 200. May slightly slow logons
 
 <a id="nbt-ns-disabled"></a>
 ### NBT-NS-Disabled
@@ -642,6 +670,18 @@ Always validate in pre-production, monitor NTLM audit before enforcement, and te
   - **Category**: Security/Logging
   - **Compatibility**: Windows Server 2008+ and Windows 7+
 
+<a id="powershellv2-disabled"></a>
+### PowerShellv2-Disabled
+
+- Computer startup script PowerShellv2-Disabled.ps1 (Machine\Scripts\Startup, registered in PSscripts.ini)
+  - **Policy**: Remove the Windows PowerShell 2.0 engine
+  - **Description**: Removes `MicrosoftWindowsPowerShellV2Root` (client) / `PowerShell-V2` (server) when present; idempotent, no forced restart, log in %ProgramData%\ADHardener\powershellv2.log
+  - **Impact**: Scripts forcing `powershell -Version 2` stop working. Effective after the next reboot
+  - **Security Benefit**: Closes the downgrade attack that bypasses AMSI, script block logging and Constrained Language Mode. Complements Powershell-Hardened
+  - **Category**: Security/PowerShell
+  - **Compatibility**: Ensure no legacy script or application requires `powershell -Version 2` before enabling
+  - **Supported**: Windows Server 2008 R2+ and Windows 7+
+
 <a id="proxy-change-disabled"></a>
 ### Proxy-Change-Disabled
 
@@ -700,7 +740,8 @@ Always validate in pre-production, monitor NTLM audit before enforcement, and te
   - **Setting**: Use the following restricted mode: Require Remote Credential Guard
   - **Registry Path**: HKLM\SOFTWARE\Policies\Microsoft\Windows\CredentialsDelegation
   - **Settings**:
-    - AllowProtectedCreds = 1: Enable Remote Credential Guard
+    - RestrictedRemoteAdministration = 1: Enabled
+    - RestrictedRemoteAdministrationType = 2: Require Remote Credential Guard (1 = Require Restricted Admin, 3 = Restrict Credential Delegation)
   - **Impact**: Prevents participating applications (Remote Desktop Client) from exposing signed-in or supplied credentials to a remote host
   - **Security Benefit**: Protects against pass-the-hash attacks, credential theft, and lateral movement by preventing credential delegation during RDP sessions
   - **Category**: Security/Credentials Delegation
@@ -742,12 +783,14 @@ Always validate in pre-production, monitor NTLM audit before enforcement, and te
   - **Impact**: Automatically locks screens after 10 minutes of inactivity
   - **Security Benefit**: Prevents unauthorized access to unattended workstations
   - **Category**: Security/Workstation
+  - **Scope**: User Configuration (`User\registry.pol`): link it to the OUs containing the user accounts, not the computers
   - **Compatibility**: Windows Server 2008+ and Windows 7+
 
 <a id="secure-netlogon"></a>
 ### Secure-NetLogon
 
 - RequireSignOrSeal = 1
+- SignSecureChannel = 1
 - SealSecureChannel = 1
 - RequireStrongKey = 1
 - DisablePasswordChange = 0
@@ -756,6 +799,7 @@ Always validate in pre-production, monitor NTLM audit before enforcement, and te
   - **Description**: Enforces secure NetLogon communications with signing, sealing, and strong keys
   - **Settings**:
     - RequireSignOrSeal = 1
+    - SignSecureChannel = 1
     - SealSecureChannel = 1
     - RequireStrongKey = 1
     - DisablePasswordChange = 0
@@ -835,13 +879,13 @@ Always validate in pre-production, monitor NTLM audit before enforcement, and te
 <a id="smbv311-enforced"></a>
 ### SMBv3.1.1-Enforced
 
-- HKLM\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters\MinClientDialect = 0x0311
-- HKLM\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters\MinClientDialect = 0x0311
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\LanmanServer\MinSmb2Dialect = 0x0311
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation\MinSmb2Dialect = 0x0311
   - **Policy**: Enforce SMBv3.1.1 as the minimum SMB dialect
   - **Description**: Prevents the SMB server and client from negotiating any dialect older than SMBv3.1.1, blocking SMBv1/v2/v2.1/v3.0/v3.0.2 connections
   - **Registry Settings**:
-    - HKLM\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters\MinClientDialect = 0x0311
-    - HKLM\SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters\MinClientDialect = 0x0311
+    - HKLM\SOFTWARE\Policies\Microsoft\Windows\LanmanServer\MinSmb2Dialect = 0x0311 (policy "Mandate the minimum version of SMB", server)
+    - HKLM\SOFTWARE\Policies\Microsoft\Windows\LanmanWorkstation\MinSmb2Dialect = 0x0311 (policy "Mandate the minimum version of SMB", client)
   - **Impact**: Any client or server that does not support SMBv3.1.1 will be refused. Connections attempting to negotiate a lower dialect are rejected.
   - **Security Benefit**: SMBv3.1.1 is the only SMB version that supports pre-authentication integrity (SHA-512) and AES-128-GCM encryption. Enforcing it eliminates dialect-downgrade attacks and ensures the strongest available SMB security.
   - **Category**: Network/SMB
@@ -867,16 +911,20 @@ Always validate in pre-production, monitor NTLM audit before enforcement, and te
   - SSL 3.0 (Client/Server): Enabled=0, DisabledByDefault=1
   - TLS 1.0 (Client/Server): Enabled=0, DisabledByDefault=1
   - TLS 1.1 (Client/Server): Enabled=0, DisabledByDefault=1
+  - TLS 1.2 (Client/Server): Enabled=1, DisabledByDefault=0
+  - TLS 1.3 (Client/Server): Enabled=1, DisabledByDefault=0
   - **Policy**: Disable weak SSL/TLS protocols and enforce modern encryption
-  - **Description**: Disables outdated and vulnerable SSL/TLS protocols to enforce modern encryption standards
+  - **Description**: Disables SSL 3.0 and TLS 1.0/1.1 and explicitly enables TLS 1.2 and TLS 1.3 (HKLM\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols)
   - **Settings**: SCHANNEL Protocols
     - SSL 3.0 (Client/Server): Enabled=0, DisabledByDefault=1
     - TLS 1.0 (Client/Server): Enabled=0, DisabledByDefault=1
     - TLS 1.1 (Client/Server): Enabled=0, DisabledByDefault=1
+    - TLS 1.2 (Client/Server): Enabled=1, DisabledByDefault=0
+    - TLS 1.3 (Client/Server): Enabled=1, DisabledByDefault=0
   - **Impact**: Forces use of TLS 1.2+ and prevents downgrade attacks
   - **Security Benefit**: Eliminates vulnerabilities in weak SSL/TLS protocols
   - **Category**: Security/Encryption
-  - **Compatibility**: Windows Server 2008+ and Windows 7+
+  - **Compatibility**: TLS 1.2 requires Windows Server 2008 R2+ / Windows 7+ (with updates); TLS 1.3 is only used on Windows Server 2022+ and Windows 11 (ignored by older systems)
 
 <a id="uac-hardened"></a>
 ### UAC-Hardened
@@ -963,6 +1011,42 @@ Always validate in pre-production, monitor NTLM audit before enforcement, and te
   - **Security Benefit**: Mitigates WPAD attacks and unauthorized proxy configuration
   - **Category**: Security/Network
   - **Compatibility**: Windows Server 2008+ and Windows 7+
+
+<a id="winrm-client-hardened"></a>
+### WinRM-Client-Hardened
+
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Client\AllowBasic = 0
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Client\AllowDigest = 0
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Client\AllowCredSSP = 0
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Client\AllowUnencryptedTraffic = 0
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Client\AllowKerberos = 1
+  - **Policy**: Windows Components\Windows Remote Management (WinRM)\WinRM Client: Allow Basic authentication = Disabled; Disallow Digest authentication = Enabled; Allow CredSSP authentication = Disabled; Allow unencrypted traffic = Disabled; Disallow Kerberos authentication = Disabled
+  - **Description**: Prevents the WinRM client from using Basic, Digest, CredSSP or unencrypted HTTP, and keeps Kerberos explicitly allowed
+  - **Registry Setting**: See the values above. The "Disallow ..." and "Allow ..." policies write opposite data (e.g. `AllowDigest = 0` is "Disallow Digest authentication: Enabled")
+  - **Impact**: This machine can no longer connect to WinRM services that require Basic, Digest, CredSSP or unencrypted HTTP; CredSSP double-hop scenarios must use Kerberos delegation instead
+  - **Security Benefit**: Credentials are no longer sent in a form that is easy to steal or relay
+  - **Category**: Remote management
+  - **Compatibility**: Not configured on purpose: Disallow Negotiate authentication and Trusted Hosts. Enforcing an empty Trusted Hosts list is a possible extra hardening if nobody remotes to non-domain machines
+  - **Supported**: At least Windows Vista / Server 2008
+
+<a id="winrm-server-hardened"></a>
+### WinRM-Server-Hardened
+
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service\CBTHardeningLevelStatus = 1 and CbtHardeningLevel = Strict
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service\DisableRunAs = 1
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service\AllowBasic = 0
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service\AllowCredSSP = 0
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service\AllowUnencryptedTraffic = 0
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service\HttpsCompatibilityListener = 0
+- HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service\AllowAutoConfig = 1, IPv4Filter = *, IPv6Filter = *
+  - **Policy**: Windows Components\Windows Remote Management (WinRM)\WinRM Service: Specify channel binding token hardening level = Enabled (Strict); Disallow WinRM from storing RunAs credentials = Enabled; Allow Basic authentication = Disabled; Allow CredSSP authentication = Disabled; Allow unencrypted traffic = Disabled; Turn On Compatibility HTTPS Listener = Disabled; Allow remote server management through WinRM = Enabled
+  - **Description**: Hardens the WinRM service: strict channel binding, no stored RunAs credentials, no Basic, CredSSP or unencrypted traffic, no compatibility HTTPS listener
+  - **Registry Setting**: See the values above. The channel binding policy writes two values (`CBTHardeningLevelStatus` and `CbtHardeningLevel`)
+  - **Impact**: Basic, CredSSP and unencrypted clients stop working; an HTTPS client that sends no channel binding token is refused (Strict)
+  - **Security Benefit**: No clear-text or relayable credentials; relay over HTTPS blocked by channel binding
+  - **Category**: Remote management
+  - **Compatibility**: Link to server OUs only (`AllowAutoConfig` makes the listener available, which workstations and PAW must not expose). The listener filters are `*` (any address): restrict them to your admin subnets or PAW addresses before production. Not configured on purpose: Disallow Negotiate authentication (Enabled would leave Kerberos only but breaks remoting by IP address and to non-domain machines)
+  - **Supported**: At least Windows Vista / Server 2008
 
 <a id="wpad-computer-disabled"></a>
 ### WPAD-Computer-Disabled

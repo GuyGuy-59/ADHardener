@@ -1,0 +1,80 @@
+{
+    "_comment": "Fine-Grained Password Policies (PSO) applied by SetFineGrainedPasswordPolicies. Requires Domain Functional Level >= 2008. Subjects are SamAccountNames of GLOBAL SECURITY GROUPS (or users); a missing group is skipped with a warning. Durations use the .NET TimeSpan format [d.]hh:mm:ss. Lowest Precedence wins when several PSOs apply to the same account. MaxPasswordAge 0.00:00:00 = never expires. Values follow ANSSI (12+ characters standard, 15+ privileged, 25+ service accounts) and CIS lockout guidance (threshold 3, 15 min). Test lockout settings on admin accounts in a lab first.",
+    "PSOs": [
+        {
+            "Name": "PSO-Tier0-Admins",
+            "Description": "Tier 0 administrators: 16 characters, 24 passwords of history, lockout after 3 failures. Managed by ADHardened.",
+            "Precedence": 10,
+            "MinPasswordLength": 16,
+            "PasswordHistoryCount": 24,
+            "ComplexityEnabled": true,
+            "ReversibleEncryptionEnabled": false,
+            "MinPasswordAge": "1.00:00:00",
+            "MaxPasswordAge": "180.00:00:00",
+            "LockoutThreshold": 3,
+            "LockoutObservationWindow": "00:15:00",
+            "LockoutDuration": "00:15:00",
+            "Subjects": ["Tier0_Admins"]
+        },
+        {
+            "Name": "PSO-Tier1-Admins",
+            "Description": "Tier 1 and Tier 1 Legacy administrators: 15 characters. Managed by ADHardened.",
+            "Precedence": 20,
+            "MinPasswordLength": 15,
+            "PasswordHistoryCount": 24,
+            "ComplexityEnabled": true,
+            "ReversibleEncryptionEnabled": false,
+            "MinPasswordAge": "1.00:00:00",
+            "MaxPasswordAge": "365.00:00:00",
+            "LockoutThreshold": 3,
+            "LockoutObservationWindow": "00:15:00",
+            "LockoutDuration": "00:15:00",
+            "Subjects": ["Tier1_Admins", "Tier1_Legacy_Admins"]
+        },
+        {
+            "Name": "PSO-Tier2-Admins",
+            "Description": "Tier 2 (helpdesk) administrators: 15 characters. Managed by ADHardened.",
+            "Precedence": 30,
+            "MinPasswordLength": 15,
+            "PasswordHistoryCount": 24,
+            "ComplexityEnabled": true,
+            "ReversibleEncryptionEnabled": false,
+            "MinPasswordAge": "1.00:00:00",
+            "MaxPasswordAge": "365.00:00:00",
+            "LockoutThreshold": 3,
+            "LockoutObservationWindow": "00:15:00",
+            "LockoutDuration": "00:15:00",
+            "Subjects": ["Tier2_Admins"]
+        },
+        {
+            "Name": "PSO-Service-Accounts",
+            "Description": "Service accounts: 25+ characters, no expiry, no lockout (a lockout would be a denial of service). Prefer gMSA. Managed by ADHardened.",
+            "Precedence": 40,
+            "MinPasswordLength": 25,
+            "PasswordHistoryCount": 24,
+            "ComplexityEnabled": true,
+            "ReversibleEncryptionEnabled": false,
+            "MinPasswordAge": "1.00:00:00",
+            "MaxPasswordAge": "0.00:00:00",
+            "LockoutThreshold": 0,
+            "LockoutObservationWindow": "00:15:00",
+            "LockoutDuration": "00:15:00",
+            "Subjects": ["Service-Accounts"]
+        },
+        {
+            "Name": "PSO-Standard-Users",
+            "Description": "Standard users (Tier 2): 12 characters, lockout after 3 failures. Managed by ADHardened.",
+            "Precedence": 100,
+            "MinPasswordLength": 12,
+            "PasswordHistoryCount": 12,
+            "ComplexityEnabled": true,
+            "ReversibleEncryptionEnabled": false,
+            "MinPasswordAge": "1.00:00:00",
+            "MaxPasswordAge": "365.00:00:00",
+            "LockoutThreshold": 3,
+            "LockoutObservationWindow": "00:15:00",
+            "LockoutDuration": "00:15:00",
+            "Subjects": ["Tier2_Users"]
+        }
+    ]
+}
